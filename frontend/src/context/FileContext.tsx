@@ -1,0 +1,182 @@
+import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
+import { useRouter } from 'next/router';  // Import router here
+import axios from 'axios';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css'; 
+
+export interface FileData { 
+  filename: string;
+  originalname: string;
+  path: string;
+  size: number;
+  mimetype: string;
+  uploadDate: Date;
+}
+
+export interface Shop {
+  userId: string;
+  name: string;
+  address: string;
+  status: boolean;
+  shopDetails: {
+    location: { lat: number; lng: number };
+  };
+}
+
+interface FileContextProps {
+  filesData: FileData[];
+  setFilesData: React.Dispatch<React.SetStateAction<FileData[]>>;
+  addFiles: (files: FileData[]) => void;
+  removeFile: (index: number) => void;
+  clearFiles: () => void;
+  selectedShop: Shop | null;
+  setSelectedShop: React.Dispatch<React.SetStateAction<Shop | null>>;
+  shopStatus: { [key: string]: boolean };
+  sessionId: string | null;
+  setSessionId: (id: string | null) => void;
+  shops: Shop[];
+}
+
+const FileContext = createContext<FileContextProps | undefined>(undefined);
+
+export const useFileData = () => {
+  const context = useContext(FileContext);
+  if (!context) {
+    throw new Error('useFileData must be used within a FileProvider');
+  }
+  return context;
+};
+
+export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [filesData, setFilesData] = useState<FileData[]>([]);
+  const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [shopStatus, setShopStatus] = useState<{ [key: string]: boolean }>({});
+  const [shops, setShops] = useState<Shop[]>([]);
+  const shopHandledRef = useRef(false);
+  const router = useRouter();
+
+  const addFiles = (files: FileData[]) => {
+    setFilesData((prevFiles) => [...prevFiles, ...files]);
+  };
+
+  const removeFile = (index: number) => {
+    setFilesData((prevFiles) => prevFiles.filter((_, i) => i !== index));
+  };
+
+  const clearFiles = () => {
+    setFilesData([]);
+  };
+
+  useEffect(() => {
+    if (!router.isReady) return;
+
+    const fetchShopsAndStatus = async () => {
+      try {
+        const { shopId } = router.query;
+
+        if (shopId) {
+          const shopResponse = await axios.get('http://localhost:5000/api/shop', { params: { shopId } });
+
+          if (shopResponse.data && !shopResponse.data.message) {
+            setSelectedShop(shopResponse.data);
+            setShops([shopResponse.data]);  
+            setShopStatus((prevStatus) => ({
+              ...prevStatus,
+              [shopResponse.data.userId]: shopResponse.data.status,
+            }));
+            router.replace(router.pathname, undefined, { shallow: true });
+            shopHandledRef.current = true; // Mark that shop was handled
+            return;  
+          }
+
+          // Handle case when the shopId is invalid or not found
+          if (shopResponse.data.message) {
+            toast.error(shopResponse.data.message);
+            shopHandledRef.current = false; // Mark that shop was not handled
+            await fetchShopsBasedOnLocation(); // Fetch shops based on location
+          }
+        } else {
+          // If no shopId is present, fetch shops based on location
+          await fetchShopsBasedOnLocation();
+        }
+      } catch (error) {
+        toast.error('Failed to fetch shops');
+      }
+    };
+
+    const fetchShopsBasedOnLocation = async () => {
+      try {
+        if (!shopHandledRef.current) {
+          // Fetch shops based on location if shop was not handled
+          let userLocation = null;
+          if ('geolocation' in navigator) {
+            try {
+              const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+                navigator.geolocation.getCurrentPosition(resolve, reject)
+              );
+              userLocation = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+              };
+            } catch (geoError) {
+              toast.error('Failed to fetch location');
+            }
+          }
+
+          const shopsResponse = await axios.get('http://localhost:5000/api/shops', {
+            params: userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : {}
+          });
+          setShops(shopsResponse.data.shops);  // Set nearest shops
+          const newShopStatus = shopsResponse.data.shops.reduce((statusObj, shop) => {
+            statusObj[shop.userId] = shop.status; // Assuming each shop object has a status field
+            return statusObj;
+          }, {});
+
+          setShopStatus((prevStatus) => ({
+            ...prevStatus,
+            ...newShopStatus,
+          }));
+        }
+      } catch (error) {
+        toast.error('Failed to fetch shops based on location');
+      }
+    };
+
+    fetchShopsAndStatus();
+  }, [router.isReady, router.query]);
+
+  useEffect(() => {
+    const fetchShopStatus = async () => {
+      try {
+        const response = await axios.get('http://localhost:5000/api/shop-status');
+        setShopStatus(response.data);
+      } catch (error) { 
+        toast.error('Failed to fetch shop status');
+      }
+    };
+
+    fetchShopStatus(); // Initial fetch
+    const interval = setInterval(fetchShopStatus, 30000); // Poll every 30 seconds
+
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, []);
+
+  return (
+    <FileContext.Provider value={{ 
+      filesData, 
+      setFilesData, 
+      addFiles, 
+      removeFile, 
+      clearFiles, 
+      selectedShop, 
+      setSelectedShop, 
+      sessionId, 
+      setSessionId, 
+      shopStatus,
+      shops
+    }}>
+      {children}
+    </FileContext.Provider>
+  );
+};

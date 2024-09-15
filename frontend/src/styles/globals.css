@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Modern scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Modern scrollbar for Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #888 #f1f1f1;
+}
+
+/* No scrollbar class for Edge and IE */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+:root {
+  --primary: #4f46e5; /* indigo-600 */
+  --primary-dark: #4338ca; /* indigo-700 */
+  --secondary: #10b981; /* green-500 */
+  --background: #f3f4f6; /* gray-100 */
+  --text: #111827; /* gray-900 */
+  --text-light: #4b5563; /* gray-600 */
+  --white: #ffffff;
+  --error: #ef4444; /* red-500 */
+}
+body {
+  @apply font-sans text-gray-900;
+}
+
+h1 {
+  @apply text-4xl font-bold;
+}
+
+h2 {
+  @apply text-3xl font-bold;
+}
+
+p {
+  @apply text-base leading-relaxed;
+}
+@layer utilities {
+  .preview-container {
+    @apply w-[213px] h-[302.6px] rounded-md shadow-md bg-white;
+  }
+
+  @media (max-width: 768px) {
+    .preview-container {
+      @apply w-[194px] h-[275.6px];
+    }
+  }
+}

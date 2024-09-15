@@ -1,0 +1,559 @@
+const { app, powerSaveBlocker, powerMonitor, BrowserWindow, ipcMain, Notification, Tray, Menu } = require('electron');
+const WebSocket = require('ws');
+const fs = require('fs').promises;
+const path = require('path');
+const { print, getPrinters } = require('pdf-to-printer');
+const Registry = require('winreg');
+const winston = require('winston');
+const yargs = require('yargs/yargs');
+const { hideBin } = require('yargs/helpers');
+const { exec } = require('child_process');
+const crypto = require('crypto');
+const config = require('./config.json');
+const axios = require('axios');
+
+const argv = yargs(hideBin(process.argv))
+  .option('ws-url', {
+    description: 'WebSocket server URL',
+    default: config.wsUrl || 'ws://localhost:5553'
+  })
+  .option('debug', {
+    description: 'Enable debug mode',
+    type: 'boolean',
+    default: config.debug || false
+  })
+  .argv;
+
+const logger = winston.createLogger({
+  level: argv.debug ? 'debug' : 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.printf(({ timestamp, level, message }) => `${timestamp} [${level}]: ${message}`)
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ 
+      filename: 'application.log',
+      maxsize: 5242880,
+      maxFiles: 5,
+      tailable: true
+    })
+  ]
+});
+
+const logMessage = (message, level = 'info') => {
+  if (typeof logger[level] === 'function') {
+    logger[level](message);
+  } else {
+    console.log(`[${level.toUpperCase()}] ${message}`);
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('log-message', `[${level.toUpperCase()}] ${message}`);
+  }
+  if (level === 'error') {
+    new Notification({ title: 'Error', body: message }).show();
+  }
+};
+
+let mainWindow;
+let ws;
+let powerSaveId;
+let printQueue = [];
+let isPrinting = false;
+let wsRetries = 0;
+let tray = null;
+let messageQueue = [];
+let currentPdfChunks = {};
+let clientId = null;
+let jwtToken = null;
+
+app.whenReady().then(async () => {
+  try {
+    powerSaveId = powerSaveBlocker.start('prevent-display-sleep');
+    await createWindow();
+    createTray();
+    startWebSocketClient();
+
+    powerMonitor.on('suspend', () => {
+      logMessage('The system is going to sleep');
+      if (ws) ws.close();
+    });
+
+    powerMonitor.on('resume', () => {
+      logMessage('The system is waking up');
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        startWebSocketClient();
+      }
+    });
+  } catch (error) {
+    logMessage(`Error during app initialization: ${error.message}`, 'error');
+  }
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
+
+app.on('before-quit', async (event) => {
+  powerSaveBlocker.stop(powerSaveId);
+  if (ws) {
+    ws.close();
+  }
+  try {
+    await cleanupTempFiles();
+  } catch (error) {
+    logMessage(`Error during cleanup on before-quit: ${error.message}`, 'error');
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow = null;
+  }
+});
+
+const createWindow = async () => {
+  mainWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  await mainWindow.loadFile('index.html');
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
+  const storedInfo = await getStoredClientInfo();
+  if (storedInfo) {
+    clientId = storedInfo.clientId;
+    jwtToken = storedInfo.token;
+    // console.log(`Client information loaded:`, storedInfo); // Log stored client information
+    // console.log(`File location: ${path.join(app.getPath('userData'), 'clientInfo.json')}`); // Log file location
+    // startWebSocketClient();
+  } else {
+    mainWindow.webContents.send('register-client');
+  }
+};
+
+const getStoredClientInfo = async () => {
+  try {
+    const data = await fs.readFile(path.join(app.getPath('userData'), 'clientInfo.json'), 'utf8');
+    const parsedData = JSON.parse(data);
+    clientId = parsedData.clientId;
+    jwtToken = parsedData.token;
+    return parsedData;
+  } catch (error) {
+    return null;
+  }
+};
+
+const storeClientInfo = async (id, token) => {
+  await fs.writeFile(
+    path.join(app.getPath('userData'), 'clientInfo.json'),
+    JSON.stringify({ clientId: id, token: token })
+  );
+};
+
+const createTray = () => {
+  tray = new Tray(path.join(__dirname, 'icon.ico'));
+  const contextMenu = Menu.buildFromTemplate([
+    { label: 'Show App', click: () => mainWindow.show() },
+    { label: 'Quit', click: () => app.quit() }
+  ]);
+  tray.setToolTip('PDF Printer App');
+  tray.setContextMenu(contextMenu);
+};
+
+process.on('unhandledRejection', (reason, promise) => {
+  logMessage(`Unhandled Promise Rejection: ${reason}`, 'error');
+});
+
+const startPrintJob = async (pdfPath, printerName, settings) => {
+  try {
+    const options = { printer: printerName, ...settings };
+    await print(pdfPath, options);
+    logMessage('Print job sent successfully');
+    new Notification({ title: 'Print Job', body: 'Print job completed successfully' }).show();
+    return true;
+  } catch (error) {
+    logMessage(`Error sending print job: ${error.message}`, 'error');
+    new Notification({ title: 'Print Job Error', body: error.message }).show();
+    return false;
+  }
+};
+
+const handlePrintRequest = async (data) => {
+  if (data.done) {
+    const pdfBuffer = Buffer.concat(currentPdfChunks[data.jobId]);
+    const fileSize = (pdfBuffer.length / 1024 / 1024).toFixed(2);
+    logMessage(`Received complete PDF for job ${data.jobId}. File size: ${fileSize} MB`);
+
+    const tempDir = path.join(app.getPath('temp'), 'pdfs');
+    await fs.mkdir(tempDir, { recursive: true });
+    const pdfPath = path.join(tempDir, `temp_${Date.now()}.pdf`);
+    await fs.writeFile(pdfPath, pdfBuffer);
+    logMessage(`PDF saved to temporary file: ${pdfPath}`);
+
+    printQueue.push({ 
+      jobId: data.jobId, 
+      pdfPath, 
+      printerName: data.printerName, 
+      settings: data.printSettings, 
+      priority: data.priority || 'normal' 
+    });
+    sortPrintQueue();
+    processPrintQueue();
+
+    delete currentPdfChunks[data.jobId];
+  } else {
+    if (!currentPdfChunks[data.jobId]) {
+      currentPdfChunks[data.jobId] = [];
+    }
+    const chunk = Buffer.from(data.chunk, 'base64');
+    currentPdfChunks[data.jobId].push(chunk);
+    logMessage(`Received chunk for job ${data.jobId}: ${chunk.length} bytes`);
+  }
+};
+
+const sortPrintQueue = () => {
+  const priorityOrder = { high: 0, normal: 1, low: 2 };
+  printQueue.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+};
+
+const processPrintQueue = async () => {
+  if (isPrinting || printQueue.length === 0) return;
+  isPrinting = true;
+  await batchPrintJobs();
+  isPrinting = false;
+  if (printQueue.length > 0) processPrintQueue();
+};
+
+const batchPrintJobs = async () => {
+  const batchSize = 5;
+  while (printQueue.length > 0) {
+    const batch = printQueue.splice(0, batchSize);
+    await Promise.all(batch.map(processPrintJob));
+  }
+};
+
+const processPrintJob = async (job) => {
+  const { jobId, pdfPath, printerName, settings } = job;
+  try {
+    const printResult = await startPrintJob(pdfPath, printerName, settings);
+    const status = printResult ? 'success' : 'failed';
+    logMessage(`Print job ${jobId} ${status}`);
+    sendWebSocketMessage({ type: 'print-status', jobId, status });
+  } catch (error) {
+    logMessage(`Error processing print job ${jobId}: ${error.message}`, 'error');
+    sendWebSocketMessage({ type: 'print-status', jobId, status: 'error', message: error.message });
+  } finally {
+    await fs.unlink(pdfPath).catch(err => logMessage(`Error deleting temporary file: ${err.message}`, 'error'));
+  }
+};
+
+const cancelPrintJob = async (jobId) => {
+  const index = printQueue.findIndex(job => job.jobId === jobId);
+  if (index !== -1) {
+    const [canceledJob] = printQueue.splice(index, 1);
+    await fs.unlink(canceledJob.pdfPath).catch(err => logMessage(`Error deleting temporary file: ${err.message}`, 'error'));
+    logMessage(`Print job ${jobId} canceled`);
+    sendWebSocketMessage({ type: 'print-status', jobId, status: 'canceled' });
+  } else {
+    logMessage(`Print job ${jobId} not found in queue`);
+  }
+};
+
+const cleanupTempFiles = async () => {
+  const tempDir = path.join(app.getPath('temp'), 'pdfs');
+  try {
+    const files = await fs.readdir(tempDir);
+    await Promise.all(files.map(file => fs.unlink(path.join(tempDir, file))));
+    logMessage('Temporary files cleaned up');
+  } catch (error) {
+    logMessage(`Error cleaning up temporary files: ${error.message}`, 'error');
+  }
+};
+
+const getPrintersList = async () => {
+  const printers = await getPrinters();
+  const defaultPrinterName = await getDefaultPrinterName();
+  const printersList = printers.map(printer => ({
+    name: printer.name,
+    isDefault: printer.name === defaultPrinterName
+  }));
+  return printersList;
+};
+
+const sendWebSocketMessage = (message) => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    messageQueue.push(message);
+    logMessage('WebSocket not connected. Message queued.', 'warn');
+    if (!ws || ws.readyState === WebSocket.CLOSED) {
+      startWebSocketClient();
+    }
+    return;
+  }
+
+  try {
+    ws.send(JSON.stringify(message));
+    logMessage(`WebSocket message sent: ${JSON.stringify(message)}`, 'info');
+  } catch (error) {
+    logMessage(`Error sending WebSocket message: ${error.message}`, 'error');
+  }
+};
+
+
+
+const sendQueuedMessages = () => {
+  while (messageQueue.length > 0) {
+    const message = messageQueue.shift();
+    sendWebSocketMessage(message);
+  }
+};
+
+const getDefaultPrinterName = async () => {
+  try {
+    const regKey = new Registry({
+      hive: Registry.HKCU,
+      key: '\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows'
+    });
+
+    return new Promise((resolve, reject) => {
+      regKey.get('Device', (err, item) => {
+        if (err) {
+          logMessage(`Error getting default printer: ${err.message}`, 'error');
+          return resolve(null);
+        }
+        const defaultPrinter = item.value.split(',')[0];
+        resolve(defaultPrinter);
+      });
+    });
+  } catch (error) {
+    logMessage(`Error in getDefaultPrinterName: ${error.message}`, 'error');
+    return null;
+  }
+};
+
+const cleanupPartialDownloads = () => {
+  const now = Date.now();
+  Object.keys(currentPdfChunks).forEach(jobId => {
+    if (now - currentPdfChunks[jobId].lastUpdate > 5 * 60 * 1000) {
+      delete currentPdfChunks[jobId];
+      logMessage(`Cleaned up partial download for job ${jobId} due to timeout`);
+    }
+  });
+};
+
+const sendPrinterStatus = async () => {
+  try {
+    const printers = await getPrinters();
+    logMessage('Printers found:');
+    printers.forEach(printer => {
+      logMessage(`- Name: ${printer.name}, Is Default: ${printer.isDefault}`);
+    });
+
+    const defaultPrinterName = await getDefaultPrinterName();
+    logMessage(`Default printer from registry: ${defaultPrinterName}`);
+
+    const status = defaultPrinterName ? `Default printer is ${defaultPrinterName}` : 'No default printer found';
+    
+    if (mainWindow) {
+      mainWindow.webContents.send('printer-list', { printers, defaultPrinter: defaultPrinterName });
+    }
+
+    sendWebSocketMessage({ type: 'printer-status', status, printers });
+    
+    logMessage(`Printer status sent: ${status}`);
+    return { printers, defaultPrinter: defaultPrinterName };
+  } catch (error) {
+    logMessage(`Error getting printer status: ${error.message}`, 'error');
+    throw error;
+  }
+};
+
+const validateMessage = (data) => {
+  if (!data || typeof data !== 'object' || !data.type || typeof data.type !== 'string') {
+    throw new Error('Invalid message format');
+  }
+  switch (data.type) {
+    case 'print':
+      if (!data.jobId || typeof data.jobId !== 'string') {
+        throw new Error('Invalid jobId in print message');
+      }
+      break;
+    // Add cases for other message types
+  }
+};
+
+const startWebSocketClient = () => {
+  if (!jwtToken) {
+    logMessage('Client not authenticated. Please authenticate first.', 'error');
+    return;
+  }
+
+  ws = new WebSocket(argv.wsUrl, {
+    headers: {
+      Authorization: `Bearer ${jwtToken}`
+    }
+  });
+
+  ws.on('open', () => {
+    logMessage('Connected to WebSocket server');
+    wsRetries = 0;
+    // ws.send(JSON.stringify({ type: 'auth', token: jwtToken }));
+    sendQueuedMessages();
+    sendPrinterStatus();
+  });
+
+  ws.on('message', async (message) => {
+    try {
+      const data = JSON.parse(message);
+      switch (data.type) {
+        case 'auth':
+          if (data.status === 'success') {
+            logMessage('Authentication successful');
+            sendPrinterStatus();
+          } else {
+            logMessage('Authentication failed', 'error');
+          }
+          break;
+        case 'print':
+          await handlePrintRequest(data);
+          break;
+        case 'get-printers':
+          await sendPrinterStatus();
+          break;
+        case 'cancel-job':
+          await cancelPrintJob(data.jobId);
+          break;
+        case 'error':
+          logMessage(`Server error: ${data.message}`, 'error');
+          break;
+        default:
+          logMessage(`Unknown message type: ${data.type}`, 'warn');
+      }
+    } catch (error) {
+      logMessage(`Error handling WebSocket message: ${error.message}`, 'error');
+    }
+  });
+
+  ws.on('close', (code, reason) => {
+  if (code === 1008) { // Policy Violation, often used for authentication failures
+    logMessage('Authentication failed. Please check your credentials.', 'error');
+    // Potentially trigger a re-authentication process here
+  } else {
+    logMessage('Disconnected from WebSocket server');
+    reconnectWithBackoff();
+  }
+});
+
+  ws.on('error', (error) => {
+    logMessage(`WebSocket error: ${error.message}`, 'error');
+  });
+};
+
+const reconnectWithBackoff = () => {
+  const maxRetryDelay = 300000; // 5 minutes
+  const delay = Math.min(1000 * Math.pow(2, wsRetries), maxRetryDelay);
+  
+  setTimeout(() => {
+    if (wsRetries < config.maxRetries) {
+      wsRetries++;
+      logMessage(`Attempting to reconnect (attempt ${wsRetries})...`, 'info');
+      startWebSocketClient();
+    } else {
+      logMessage('Max retries reached. Please check the server or restart the application.', 'error');
+    }
+  }, delay);
+};
+const refreshToken = async () => {
+  try {
+    const response = await axios.post(`${config.apiUrl}/api/auth/refresh`, { token: jwtToken });
+    jwtToken = response.data.token;
+    await storeClientInfo(clientId, jwtToken);
+    logMessage('JWT token refreshed successfully');
+    
+    // Reconnect WebSocket with new token
+    if (ws) {
+      ws.close();
+    }
+    startWebSocketClient();
+  } catch (error) {
+    logMessage(`Failed to refresh JWT token: ${error.message}`, 'error');
+    setTimeout(refreshToken, 60000); // Retry after 1 minute
+  }
+};
+setInterval(refreshToken, 6 * 24 * 60 * 60 * 1000);
+
+ipcMain.handle('request-printer-list', sendPrinterStatus);
+
+ipcMain.handle('toggle-dark-mode', (event, isDarkMode) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('dark-mode-changed', isDarkMode);
+  }
+  return isDarkMode;
+});
+
+ipcMain.handle('select-printer', async (event, printerName) => {
+  try {
+    const printers = await getPrinters();
+    const selectedPrinter = printers.find(p => p.name === printerName);
+    if (selectedPrinter) {
+      const command = `rundll32 printui.dll,PrintUIEntry /y /n "${printerName}"`;
+      await new Promise((resolve, reject) => {
+        exec(command, (error, stdout, stderr) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve();
+          }
+        });
+      });
+      logMessage(`Default printer set to ${printerName}`);
+      await sendPrinterStatus();
+      return { success: true, printer: printerName };
+    } else {
+      return { success: false, message: 'Printer not found' };
+    }
+  } catch (error) {
+    logMessage(`Error selecting printer: ${error.message}`, 'error');
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('cancel-job', async (event, jobId) => {
+  await cancelPrintJob(jobId);
+  return { success: true, message: `Job ${jobId} cancelled` };
+});
+
+ipcMain.handle('check-registration', async () => {
+  const clientInfo = await getStoredClientInfo();
+  return !!clientInfo;
+});
+
+ipcMain.handle('register-client', async (event, registrationData) => {
+  try {
+    const response = await axios.post(`${config.apiUrl}/api/auth/register`, registrationData);
+    clientId = response.data.clientId;
+    jwtToken = response.data.token;
+    await storeClientInfo(clientId, jwtToken);
+    startWebSocketClient();
+    return { success: true, message: 'Registration successful' };
+  } catch (error) {
+    logMessage(`Registration failed: ${error.message}`, 'error');
+    return { success: false, message: 'Registration failed' };
+  }
+});
+
+setInterval(cleanupPartialDownloads, 60 * 1000);

@@ -1,0 +1,9 @@
+{
+  "wsUrl": "ws://localhost:5553",
+  "wsAuthToken": "",
+  "debug": true,
+  "maxRetries": 10,
+  "retryDelay": 1000,
+  "clientName": "Default Client Name",
+  "apiUrl": "http://localhost:5000"
+}

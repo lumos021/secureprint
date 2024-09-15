@@ -1,0 +1,49 @@
+const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
+const User = require('../models/userModel');
+const wsMessageHandler = require('../utils/wsMessageHandler.js');
+
+const { updateShopStatus } = require('../utils/shopStatusCache.js'); // Update the path accordingly
+
+module.exports = async (ws, req) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    logger.warn('Missing or invalid authorization header');
+    ws.close(1008, 'Invalid authorization');
+    return;
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findOne({ userId: decoded.userId });
+
+    if (!user) {
+      logger.warn('Unknown user attempted to connect', { userId: decoded.userId });
+      ws.close(1008, 'Unknown user');
+      return;
+    }
+
+    ws.userId = decoded.userId;
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
+
+    // Mark the shop as online when the WebSocket connection is established
+    updateShopStatus(ws.userId, 'online');
+    logger.info('WebSocket user connected', { userId: decoded.userId });
+
+    // Handle incoming WebSocket messages
+    ws.on('message', (message) => wsMessageHandler(ws, message));
+
+    // Handle WebSocket disconnection
+    ws.on('close', () => {
+      // Mark the shop as offline when the WebSocket connection is closed
+      updateShopStatus(ws.userId, 'offline');
+      logger.info('WebSocket user disconnected', { userId: decoded.userId });
+    });
+  } catch (error) {
+    logger.error('Error in WebSocket connection', { error: error.message });
+    ws.close(1008, 'Authentication failed');
+  }
+};

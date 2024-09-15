@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secureprint Dashboard</title>
+    <link href="./css/output.css" rel="stylesheet">
+    <link href="./css/styles.css" rel="stylesheet">
+
+    <link href="./css/all.min.css" rel="stylesheet">
+
+    <style>
+        .transition-all { transition: all 0.3s ease; }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555; }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-all min-h-screen flex items-center justify-center p-4">
+    <div id="app" class="w-full max-w-6xl bg-white dark:bg-gray-800 shadow-2xl rounded-lg overflow-hidden">
+        
+        <!-- Login Screen -->
+        <div id="login-screen" class="p-8 space-y-6">
+            <h1 class="text-4xl font-bold text-center dark:text-white mb-8">Secureprint Login</h1>
+            <form id="login-form" class="space-y-6 max-w-md mx-auto">
+                <div>
+                    <label for="username" class="block text-sm font-medium mb-2 dark:text-gray-300">Username</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                            <i class="fas fa-user text-gray-400"></i>
+                        </span>
+                        <input 
+                            type="text" 
+                            id="username" 
+                            required 
+                            class="w-full pl-10 pr-4 py-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Enter your username"
+                        >
+                    </div>
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium mb-2 dark:text-gray-300">Password</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                            <i class="fas fa-lock text-gray-400"></i>
+                        </span>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            required 
+                            class="w-full pl-10 pr-4 py-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Enter your password"
+                        >
+                    </div>
+                </div>
+                <div id="loginError" class="text-red-500 text-sm hidden">Invalid username or password.</div>
+                <div class="flex justify-between items-center">
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-md transition-all flex items-center justify-center">
+                        <i class="fas fa-sign-in-alt mr-2"></i> Sign In
+                    </button>
+                </div>
+            </form>
+            <div class="text-center mt-6">
+                <button id="showRegister" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-500 font-medium">
+                    Don't have an account? Register
+                </button>
+            </div>
+        </div>
+
+        <!-- Registration Screen -->
+        <div id="registration-screen" class="p-8 space-y-6 hidden">
+            <h1 class="text-4xl font-bold text-center dark:text-white mb-8">Create an Account</h1>
+            <form id="registration-form" class="space-y-6 max-w-md mx-auto">
+                <div>
+                    <label for="name" class="block text-sm font-medium mb-2 dark:text-gray-300">Name</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                            <i class="fas fa-user text-gray-400"></i>
+                        </span>
+                        <input 
+                            type="text" 
+                            id="name" 
+                            required 
+                            class="w-full pl-10 pr-4 py-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            placeholder="Your full name"
+                        >
+                    </div>
+                </div>
+                <div>
+                    <label for="email" class="block text-sm font-medium mb-2 dark:text-gray-300">Email</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                            <i class="fas fa-envelope text-gray-400"></i>
+                        </span>
+                        <input 
+                            type="email" 
+                            id="email" 
+                            required 
+                            class="w-full pl-10 pr-4 py-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            placeholder="your@example.com"
+                        >
+                    </div>
+                </div>
+                <div>
+                    <label for="register-password" class="block text-sm font-medium mb-2 dark:text-gray-300">Password</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                            <i class="fas fa-lock text-gray-400"></i>
+                        </span>
+                        <input 
+                            type="password" 
+                            id="register-password" 
+                            required 
+                            class="w-full pl-10 pr-4 py-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            placeholder="Create a password"
+                        >
+                    </div>
+                </div>
+                <div>
+                    <label for="address" class="block text-sm font-medium mb-2 dark:text-gray-300">Address</label>
+                    <div class="relative">
+                        <span class="absolute top-3 left-3">
+                            <i class="fas fa-home text-gray-400"></i>
+                        </span>
+                        <textarea 
+                            id="address" 
+                            rows="3" 
+                            required 
+                            class="w-full pl-10 pr-4 py-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            placeholder="Your address"
+                        ></textarea>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" id="isShop" class="mr-2 h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                    <label for="isShop" class="text-sm font-medium dark:text-gray-300">Register as Shop</label>
+                </div>
+                <!-- Shop Location Fields -->
+                <div id="shop-details" class="space-y-4 hidden">
+                    <div>
+                        <label for="latitude" class="block text-sm font-medium mb-2 dark:text-gray-300">Latitude</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                                <i class="fas fa-map-marker-alt text-gray-400"></i>
+                            </span>
+                            <input 
+                                type="number" 
+                                id="latitude" 
+                                step="any" 
+                                required 
+                                class="w-full pl-10 pr-4 py-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                placeholder="Enter latitude"
+                            >
+                        </div>
+                    </div>
+                    <div>
+                        <label for="longitude" class="block text-sm font-medium mb-2 dark:text-gray-300">Longitude</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                                <i class="fas fa-map-marker-alt text-gray-400"></i>
+                            </span>
+                            <input 
+                                type="number" 
+                                id="longitude" 
+                                step="any" 
+                                required 
+                                class="w-full pl-10 pr-4 py-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                placeholder="Enter longitude"
+                            >
+                        </div>
+                    </div>
+                    <div>
+                        <button 
+                            type="button" 
+                            id="getLocationBtn" 
+                            class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-md transition-all flex items-center justify-center"
+                        >
+                            <i class="fas fa-location-arrow mr-2"></i> Use Current Location
+                        </button>
+                    </div>
+                </div>
+                <div id="registrationError" class="text-red-500 text-sm hidden">Registration failed. Please try again.</div>
+                <div class="flex justify-between items-center">
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-md transition-all flex items-center justify-center">
+                        <i class="fas fa-user-plus mr-2"></i> Register
+                    </button>
+                </div>
+            </form>
+            <div class="text-center mt-6">
+                <button id="showLogin" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-500 font-medium">
+                    Already have an account? Login
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Application Screen -->
+        <div id="main-app" class="hidden">
+            <div class="flex flex-col md:flex-row">
+                <!-- Sidebar -->
+                <aside class="w-full md:w-72 bg-gray-50 dark:bg-gray-800 p-6 border-r border-gray-200 dark:border-gray-700 flex-shrink-0">
+                    <h1 class="text-2xl font-bold mb-6 text-center dark:text-gray-100">Secureprint Dashboard</h1>
+                    <button id="darkModeToggle" class="w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-md mb-4 transition-all flex items-center justify-center">
+                        <i class="fas fa-moon mr-2"></i> Toggle Dark Mode
+                    </button>
+                    <button id="refreshPrinters" class="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md mb-4 transition-all flex items-center justify-center">
+                        <i class="fas fa-sync-alt mr-2"></i> Refresh Printer List
+                    </button>
+                    <div id="status" class="text-sm text-gray-600 dark:text-gray-400 mb-4 bg-gray-100 dark:bg-gray-700 p-3 rounded-md">
+                        <i class="fas fa-info-circle mr-2"></i> Status: Waiting for printer information...
+                    </div>
+                    <div class="mb-4">
+                        <label for="printers" class="block text-sm font-medium mb-2 dark:text-gray-300">Select Printer:</label>
+                        <select id="printers" class="block w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 py-2 px-3 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <!-- Printer options will be populated here -->
+                        </select>
+                    </div>
+                    <button id="setPrinter" class="w-full bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-md mb-4 transition-all flex items-center justify-center">
+                        <i class="fas fa-check mr-2"></i> Set as Default
+                    </button>
+                    <button id="logoutButton" class="w-full bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-md transition-all flex items-center justify-center">
+                        <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                    </button>
+                </aside>
+
+                <!-- Main Content -->
+                <main class="flex-grow p-6 bg-gray-100 dark:bg-gray-900 overflow-y-auto custom-scrollbar">
+                    <!-- Print Queue Section -->
+                    <section id="printQueue" class="mb-8">
+                        <h2 class="text-xl font-semibold mb-4 dark:text-gray-100 flex items-center">
+                            <i class="fas fa-print mr-2"></i> Print Queue
+                        </h2>
+                        <ul id="queueList" class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 space-y-2">
+                            <!-- Print queue items will be populated here -->
+                        </ul>
+                    </section>
+
+<!-- Log Section -->
+<section>
+    <h2 class="text-xl font-semibold mb-4 dark:text-gray-100 flex items-center">
+        <i class="fas fa-clipboard-list mr-2"></i> Log
+    </h2>
+    <div id="logWindow" class="bg-white dark:bg-gray-800 h-64 overflow-y-auto rounded-lg shadow-md p-4 whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 custom-scrollbar">
+        <!-- Log messages will appear here -->
+    </div>
+</section>
+</main>
+</div>
+</div>
+
+</div>
+
+<!-- JavaScript -->
+<script src="renderer.js"></script>
+
+</body>
+</html>

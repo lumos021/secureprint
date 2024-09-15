@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Printer Dashboard</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            transition: background-color 0.3s, color 0.3s;
+        }
+        body.dark-mode {
+            background-color: #333;
+            color: #fff;
+        }
+        #logWindow { 
+            height: 300px; 
+            overflow-y: auto; 
+            border: 1px solid #ccc; 
+            padding: 10px; 
+            margin-top: 20px;
+        }
+        .log-entry { margin-bottom: 10px; }
+        #printerSelect { margin-top: 20px; }
+        #status { margin-top: 20px; font-weight: bold; }
+        #printQueue { margin-top: 20px; }
+        .queue-item { margin-bottom: 5px; }
+        .log-info { color: #333; }
+        .log-warn { color: #ff9900; }
+        .log-error { color: #ff0000; }
+        body.dark-mode .log-info { color: #fff; }
+        body.dark-mode .log-warn { color: #ffcc00; }
+        body.dark-mode .log-error { color: #ff6666; }
+        #registration-screen, #main-app, #login-screen {
+            display: none;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 5px;
+        }
+        button {
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div id="login-screen">
+        <h1>Login</h1>
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" required>
+            </div>
+            <button type="submit">Login</button>
+        </form>
+        <button id="showRegister">Register</button>
+    </div>
+
+    <div id="registration-screen">
+        <h1>Register Your Client</h1>
+        <form id="registration-form">
+            <div class="form-group">
+                <label for="name">Name:</label>
+                <input type="text" id="name" required>
+            </div>
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" required>
+            </div>
+            <button type="submit">Register</button>
+        </form>
+    </div>
+
+    <div id="main-app">
+        <h1>PDF Printer Dashboard</h1>
+        <button id="darkModeToggle">Toggle Dark Mode</button>
+        <button id="refreshPrinters">Refresh Printer List</button>
+        <div id="status">Status: Waiting for printer information...</div>
+        <div id="printerSelect">
+            <label for="printers">Select Printer:</label>
+            <select id="printers"></select>
+            <button id="setPrinter">Set as Default</button>
+        </div>
+        <div id="printQueue">
+            <h2>Print Queue</h2>
+            <ul id="queueList"></ul>
+        </div>
+        <h2>Log</h2>
+        <div id="logWindow"></div>
+    </div>
+
+    <script>
+        const loginScreen = document.getElementById('login-screen');
+        const registrationScreen = document.getElementById('registration-screen');
+        const mainApp = document.getElementById('main-app');
+        const loginForm = document.getElementById('login-form');
+        const registrationForm = document.getElementById('registration-form');
+        const logWindow = document.getElementById('logWindow');
+        const statusEl = document.getElementById('status');
+        const printerSelect = document.getElementById('printers');
+        const setPrinterBtn = document.getElementById('setPrinter');
+        const queueList = document.getElementById('queueList');
+        const darkModeToggle = document.getElementById('darkModeToggle');
+        const refreshPrintersBtn = document.getElementById('refreshPrinters');
+        const showRegisterButton = document.getElementById('showRegister');
+
+   // Check token validity and refresh if necessary
+window.electron.checkToken().then(isValid => {
+    if (isValid) {
+        showMainApp();
+    } else {
+        // If the token is not valid, attempt to refresh it
+        window.electron.refreshToken().then(isRefreshed => {
+            if (isRefreshed) {
+                showMainApp();
+            } else {
+                showLoginScreen();
+            }
+        }).catch(() => {
+            showLoginScreen();
+        });
+    }
+});
+
+
+
+        function showLoginScreen() {
+            loginScreen.style.display = 'block';
+            registrationScreen.style.display = 'none';
+            mainApp.style.display = 'none';
+        }
+
+        function showRegistrationScreen() {
+            loginScreen.style.display = 'none';
+            registrationScreen.style.display = 'block';
+            mainApp.style.display = 'none';
+        }
+
+        function showMainApp() {
+            loginScreen.style.display = 'none';
+            registrationScreen.style.display = 'none';
+            mainApp.style.display = 'block';
+            window.electron.requestPrinterList();
+        }
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                await window.electron.login({ username, password });
+                showMainApp();
+            } catch (error) {
+                alert(`Login failed: ${error.message}`);
+            }
+        });
+
+        registrationForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+
+            try {
+                await window.electron.registerClient({ name, email });
+                showMainApp();
+            } catch (error) {
+                alert(`Registration failed: ${error.message}`);
+            }
+        });
+
+        showRegisterButton.addEventListener('click', () => {
+            showRegistrationScreen();
+        });
+
+        window.electron.receive('log-message', (message) => {
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            
+            const match = message.match(/^\[(INFO|WARN|ERROR)\]/);
+            if (match) {
+                const level = match[1].toLowerCase();
+                logEntry.classList.add(`log-${level}`);
+                message = message.replace(/^\[(INFO|WARN|ERROR)\]\s*/, '');
+            }
+            
+            logEntry.innerText = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logWindow.appendChild(logEntry);
+            logWindow.scrollTop = logWindow.scrollHeight;
+        });
+
+        window.electron.receive('printer-list', (data) => {
+            statusEl.textContent = `Status: Printers loaded`;
+            printerSelect.innerHTML = '';
+            data.printers.forEach(printer => {
+                const option = document.createElement('option');
+                option.value = printer.name;
+                option.textContent = printer.name;
+                if (printer.name === data.defaultPrinter) {
+                    option.selected = true;
+                }
+                printerSelect.appendChild(option);
+            });
+        });
+
+        window.electron.receive('queue-update', (queue) => {
+            queueList.innerHTML = '';
+            queue.forEach(job => {
+                const li = document.createElement('li');
+                li.className = 'queue-item';
+                li.textContent = `Job ${job.jobId} - ${job.printerName} - ${job.status}`;
+                queueList.appendChild(li);
+            });
+        });
+
+        darkModeToggle.addEventListener('click', () => {
+            const isDarkMode = document.body.classList.toggle('dark-mode');
+            window.electron.toggleDarkMode(isDarkMode);
+        });
+
+        refreshPrintersBtn.addEventListener('click', () => {
+            window.electron.requestPrinterList();
+        });
+
+        setPrinterBtn.addEventListener('click', () => {
+            const selectedPrinter = printerSelect.value;
+            window.electron.selectPrinter(selectedPrinter)
+                .then(result => {
+                    if (result.success) {
+                        statusEl.textContent = `Status: Default printer set to ${result.printer}`;
+                    } else {
+                        statusEl.textContent = `Status: Error setting default printer - ${result.message}`;
+                    }
+                })
+                .catch(error => {
+                    statusEl.textContent = `Status: Error setting default printer - ${error.message}`;
+                });
+        });
+    </script>
+</body>
+</html>
