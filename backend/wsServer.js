@@ -7,7 +7,6 @@ const createWebSocketServer = (port) => {
 
   wss.on('connection', wsAuthMiddleware);
 
-  // Implement a heartbeat to keep connections alive and remove dead connections
   const interval = setInterval(() => {
     wss.clients.forEach((ws) => {
       if (ws.isAlive === false) return ws.terminate();
