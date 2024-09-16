@@ -12,7 +12,6 @@ module.exports = (wss) => {
 // Rate limiting
 router.use(rateLimiter);
 
-// Request tracking middleware
 router.use(requestTracking);
 
 // Routes (these will be accessed by your web application, not the client)
