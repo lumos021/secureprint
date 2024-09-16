@@ -29,16 +29,12 @@ module.exports = async (ws, req) => {
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
 
-    // Mark the shop as online when the WebSocket connection is established
     updateShopStatus(ws.userId, 'online');
     logger.info('WebSocket user connected', { userId: decoded.userId });
 
-    // Handle incoming WebSocket messages
     ws.on('message', (message) => wsMessageHandler(ws, message));
 
-    // Handle WebSocket disconnection
     ws.on('close', () => {
-      // Mark the shop as offline when the WebSocket connection is closed
       updateShopStatus(ws.userId, 'offline');
       logger.info('WebSocket user disconnected', { userId: decoded.userId });
     });
