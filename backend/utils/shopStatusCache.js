@@ -10,7 +10,6 @@ function getShopStatus(shopId = null) {
   if (shopId) {
     return shopStatusCache[shopId] || false; 
   }
-  // console.log(shopStatusCache);
   return shopStatusCache;
 }
 
