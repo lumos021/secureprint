@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'secureprint/backend/**'
+      - 'backend/**'
 
 jobs:
   deploy:
@@ -21,9 +21,9 @@ jobs:
 
     - name: Build and push Docker image
       run: |
-        cd secureprint/backend
-        docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend:${{ github.sha }} .
-        docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend:${{ github.sha }}
+          cd backend
+          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend:${{ github.sha }} .
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend:${{ github.sha }}
 
     - name: Deploy to Cloud Run
       run: |
