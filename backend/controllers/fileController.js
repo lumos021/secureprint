@@ -20,58 +20,64 @@ const defaultPrintSettings = {
 const uploadFiles = async (req, res) => {
     const startTime = Date.now();
     logger.info('File upload request received', { requestId: req.requestId });
-
+  
     try {
-        if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ message: 'No files uploaded' });
-        }
-
-        const invalidFiles = req.files.filter(file => !isValidFileType(file.mimetype));
-        if (invalidFiles.length > 0) {
-            return res.status(400).json({ message: 'Invalid file type uploaded' });
-        }
-
-        const sessionId = req.headers['x-session-id'] || sessionManager.createSession();
-        const fileData = req.files.map(file => ({
-            filename: sanitizeFilename(file.originalname),
-            originalname: file.originalname,
-            path: getResolvedFilePath(sanitizeFilename(file.originalname)),
-            size: file.size,
-            mimetype: file.mimetype,
-            uploadDate: new Date(),
-            processedFilename: null
-        }));
-
-        await Promise.all(req.files.map(async (file, index) => {
-            await fs.rename(file.path, fileData[index].path);
-            const stats = await fs.stat(fileData[index].path);
-            const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
-            logger.info(`File saved`, {
-                filename: file.originalname,
-                size: `${fileSizeMB} MB`,
-                requestId: req.requestId
-            });
-            sessionManager.addFileToSession(sessionId, fileData[index]);
-        }));
-
-        const savedFiles = await File.insertMany(fileData);
-        const duration = Date.now() - startTime;
-        logger.info('Files uploaded successfully', {
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ message: 'No files uploaded' });
+      }
+  
+      const invalidFiles = req.files.filter((file) => !isValidFileType(file.mimetype));
+      if (invalidFiles.length > 0) {
+        return res.status(400).json({ message: 'Invalid file type uploaded' });
+      }
+  
+      const sessionId = req.headers['x-session-id'] || sessionManager.createSession();
+      sessionManager.updateLastActivity(sessionId);
+  
+      const fileData = req.files.map((file) => ({
+        filename: sanitizeFilename(file.originalname),
+        originalname: file.originalname,
+        path: getResolvedFilePath(sanitizeFilename(file.originalname)),
+        size: file.size,
+        mimetype: file.mimetype,
+        uploadDate: new Date(),
+        processedFilename: null,
+      }));
+  
+      await Promise.all(
+        req.files.map(async (file, index) => {
+          await fs.rename(file.path, fileData[index].path);
+          const stats = await fs.stat(fileData[index].path);
+          const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+          logger.info('File saved', {
+            filename: file.originalname,
+            size: `${fileSizeMB} MB`,
             requestId: req.requestId,
-            fileCount: savedFiles.length,
-            duration: `${duration}ms`,
-            sessionId
-        });
-        res.status(200).json({ message: 'Files uploaded successfully', files: savedFiles, sessionId });
+          });
+          sessionManager.addFileToSession(sessionId, fileData[index]);
+        })
+      );
+  
+      const savedFiles = await File.insertMany(fileData);
+      const duration = Date.now() - startTime;
+      logger.info('Files uploaded successfully', {
+        requestId: req.requestId,
+        fileCount: savedFiles.length,
+        duration: `${duration}ms`,
+        sessionId,
+      });
+  
+      res.status(200).json({ message: 'Files uploaded successfully', files: savedFiles, sessionId });
     } catch (error) {
-        logger.error('Error uploading files', {
-            error: error.message,
-            stack: error.stack,
-            requestId: req.requestId
-        });
-        res.status(500).json({ message: 'Error uploading files. Please try again later.' });
+      logger.error('Error uploading files', {
+        error: error.message,
+        stack: error.stack,
+        requestId: req.requestId,
+      });
+      res.status(500).json({ message: 'Error uploading files. Please try again later.' });
     }
-};
+  };
+  
 
 const downloadFile = async (req, res) => {
     const startTime = Date.now();
@@ -223,6 +229,7 @@ const processFile = async (req, res) => {
         // Update the session with the processed filename
         const sessionId = req.headers['x-session-id'];
         const session = sessionManager.getSession(sessionId);
+        sessionManager.updateLastActivity(sessionId);
         if (session) {
             const fileIndex = session.files.findIndex(f => f.filename === sanitizeFilename(filename));
             if (fileIndex !== -1) {
@@ -254,6 +261,7 @@ const finalizeFiles = async (req, res, wss) => {
     const startTime = Date.now();
     const { printSettings, clientId } = req.body;
     const sessionId = req.headers['x-session-id'];
+    sessionManager.updateLastActivity(sessionId);
 
     logger.info('Finalize request received', {
         requestId: req.requestId,
@@ -309,14 +317,17 @@ const finalizeFiles = async (req, res, wss) => {
             throw new Error(mergeResult.error);
         }
 
-        console.log(`Merged ${processedFilesData.length} files into ${mergeResult.finalFilename}`);
         const finalFilename = mergeResult.finalFilename;
         const finalFilePath = getResolvedFilePath(finalFilename);
+
+        // Set the merged filename in the session
+        sessionManager.setMergedFilename(sessionId, finalFilename);
 
         const electronResponse = await sendPDFToElectronApp(finalFilePath, wss, clientId, printSettings);
 
         // After successful sending to Electron app, perform cleanup
-        await cleanupAfterFinalize(session, finalFilename);
+        await sessionManager.cleanupSession(session);
+        sessionManager.clearSession(sessionId);
 
         const duration = Date.now() - startTime;
         logger.info('Files merged, sent for printing, and cleaned up', {
@@ -351,6 +362,7 @@ const deleteFile = async (req, res) => {
     const startTime = Date.now();
     const { filename } = req.params;
     const sessionId = req.headers['x-session-id'];
+    sessionManager.updateLastActivity(sessionId);
 
     logger.info('File deletion request received', {
         requestId: req.requestId,
@@ -420,53 +432,97 @@ const deleteFile = async (req, res) => {
     }
 };
 
-const cleanupAfterFinalize = async (session, finalFilename) => {
-    const filesToDelete = [];
+// const cleanupAfterFinalize = async (session, finalFilename) => {
+//     const filesToDelete = [];
 
-    // Add original and processed files
-    for (const file of session.files) {
-        filesToDelete.push(getResolvedFilePath(file.filename));
-        if (file.processedFilename) {
-            filesToDelete.push(getResolvedFilePath(file.processedFilename));
-        }
-    }
+//     // Add original and processed files
+//     for (const file of session.files) {
+//         filesToDelete.push(getResolvedFilePath(file.filename));
+//         if (file.processedFilename) {
+//             filesToDelete.push(getResolvedFilePath(file.processedFilename));
+//         }
+//     }
 
-    // Add the final merged file
-    filesToDelete.push(getResolvedFilePath(finalFilename));
+//     // Add the final merged file
+//     filesToDelete.push(getResolvedFilePath(finalFilename));
 
-    // Delete files from uploads directory
-    for (const filePath of filesToDelete) {
-        try {
-            await fs.unlink(filePath);
-            logger.info(`Deleted file: ${filePath}`);
-        } catch (error) {
-            if (error.code !== 'ENOENT') {
-                logger.warn(`Failed to delete file: ${filePath}`, { error: error.message });
+//     // Delete files from uploads directory
+//     for (const filePath of filesToDelete) {
+//         try {
+//             await fs.unlink(filePath);
+//             logger.info(`Deleted file: ${filePath}`);
+//         } catch (error) {
+//             if (error.code !== 'ENOENT') {
+//                 logger.warn(`Failed to delete file: ${filePath}`, { error: error.message });
+//             }
+//         }
+//     }
+
+//     // Delete files from database
+//     const filenames = session.files.map(file => sanitizeFilename(file.filename));
+//     const processedFilenames = session.files
+//         .filter(file => file.processedFilename)
+//         .map(file => file.processedFilename);
+
+//     await File.deleteMany({
+//         $or: [
+//             { filename: { $in: filenames } },
+//             { processedFilename: { $in: processedFilenames } }
+//         ]
+//     });
+
+//     // Clear the session
+//     sessionManager.clearSession(session.id);
+
+//     logger.info('Cleanup completed', {
+//         sessionId: session.id,
+//         deletedFilesCount: filesToDelete.length
+//     });
+// };
+const cleanupInactiveSessions = async () => {
+    const sessions = sessionManager.getAllSessions();
+    const now = Date.now();
+    const inactivityThreshold = 20 * 60 * 1000; // 20 minutes
+
+    for (const [sessionId, session] of sessions) {
+        if (now - session.lastActivity > inactivityThreshold) {
+            try {
+                // Delete all files associated with the session
+                for (const file of session.files) {
+                    const filePath = getResolvedFilePath(file.filename);
+                    await fs.unlink(filePath).catch(err => logger.warn(`Failed to delete file: ${filePath}`, { error: err.message }));
+                    
+                    if (file.processedFilename) {
+                        const processedPath = getResolvedFilePath(file.processedFilename);
+                        await fs.unlink(processedPath).catch(err => logger.warn(`Failed to delete processed file: ${processedPath}`, { error: err.message }));
+                    }
+                }
+
+                // Delete the final merged file if it exists
+                if (session.mergedFilename) {
+                    const mergedPath = getResolvedFilePath(session.mergedFilename);
+                    await fs.unlink(mergedPath).catch(err => logger.warn(`Failed to delete merged file: ${mergedPath}`, { error: err.message }));
+                }
+
+                // Remove all file records from the database
+                await File.deleteMany({ 
+                    $or: [
+                        { filename: { $in: session.files.map(f => f.filename) } },
+                        { processedFilename: { $in: session.files.map(f => f.processedFilename).filter(Boolean) } }
+                    ]
+                });
+
+                // Clear the session
+                sessionManager.clearSession(sessionId);
+
+                logger.info(`Cleaned up inactive session: ${sessionId}`);
+            } catch (error) {
+                logger.error(`Error cleaning up session ${sessionId}`, { error: error.message, stack: error.stack });
             }
         }
     }
-
-    // Delete files from database
-    const filenames = session.files.map(file => sanitizeFilename(file.filename));
-    const processedFilenames = session.files
-        .filter(file => file.processedFilename)
-        .map(file => file.processedFilename);
-
-    await File.deleteMany({
-        $or: [
-            { filename: { $in: filenames } },
-            { processedFilename: { $in: processedFilenames } }
-        ]
-    });
-
-    // Clear the session
-    sessionManager.clearSession(session.id);
-
-    logger.info('Cleanup completed', {
-        sessionId: session.id,
-        deletedFilesCount: filesToDelete.length
-    });
 };
+
 
 // const cleanupFiles = async (req, res) => {
 //     const startTime = Date.now();
@@ -534,12 +590,7 @@ const healthCheck = (req, res) => {
     res.json(health);
 };
 
-const cleanupInactiveSessions = () => {
-    sessionManager.cleanupInactiveSessions();
-};
 
-// Set up a periodic task to clean up inactive sessions
-setInterval(cleanupInactiveSessions, 5 * 60 * 1000); // Run every 5 minutes
 
 module.exports = {
     uploadFiles,
@@ -548,6 +599,6 @@ module.exports = {
     processFile,
     finalizeFiles,
     deleteFile,
-    //   cleanupFiles,
+    cleanupInactiveSessions,
     healthCheck,
 };

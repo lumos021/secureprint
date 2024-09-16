@@ -2,8 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
   webpack: (config) => {
-    config.module.rules.push({
-      test: /pdf\.worker\.(min\.)?mjs/,
+   config.resolve.alias.canvas = false;
+       config.module.rules.push({
+      test: /pdf\.worker\.entry\.js$/,
       use: [
         {
           loader: 'file-loader',

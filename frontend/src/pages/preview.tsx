@@ -2,18 +2,21 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useFileData, FileData } from '../context/FileContext';
 import axios from 'axios';
-import { Document, Page, pdfjs } from 'react-pdf';
+// import { Document, Page, pdfjs } from 'react-pdf';
 import { FaTimes, FaPlus } from 'react-icons/fa';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import PrintStatusModal from '../components/PrintStatusModal';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import dynamic from 'next/dynamic';
+const Document = dynamic(() => import('react-pdf').then(mod => mod.Document), { ssr: false });
+const Page = dynamic(() => import('react-pdf').then(mod => mod.Page), { ssr: false });
 
-
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+// pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 const Preview: React.FC = () => {
   const router = useRouter();
+  const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   const { filesData, addFiles, removeFile, clearFiles, selectedShop, sessionId, setSessionId, shopStatus } = useFileData();
   const [fileUrls, setFileUrls] = useState<string[]>([]);
   const [processedFileUrls, setProcessedFileUrls] = useState<string[]>([]);
@@ -50,9 +53,34 @@ const Preview: React.FC = () => {
     }
   }, [printStatus]);
 
+
+useEffect(() => {
+  if (typeof Promise.withResolvers === 'undefined') {
+    // @ts-expect-error This does not exist outside of polyfill which this is doing
+    window.Promise.withResolvers = function () {
+      let resolve, reject;
+      const promise = new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    };
+  }
+}, []);
+
+
+  useEffect(() => {
+    const loadPdfjs = async () => {
+      const { pdfjs } = await import('react-pdf');
+      pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+    };
+
+    loadPdfjs();
+  }, []);
+
   useEffect(() => {
     if (filesData.length > 0) {
-      const urls = filesData.map(file => `http://localhost:5000/${file.path}`);
+      const urls = filesData.map(file => `${apiUrl}/${file.path}`);
       setFileUrls(urls);
       setTotalPages(Array(filesData.length).fill(0));
 
@@ -97,7 +125,7 @@ const Preview: React.FC = () => {
         );
 
         if (isMounted) {
-          const processedUrls = responses.map(response => `http://localhost:5000/api/files/download/${response.data.processedFilePath}`);
+          const processedUrls = responses.map(response => `${apiUrl}/api/files/download/${response.data.processedFilePath}`);
           setProcessedFileUrls(processedUrls);
           setLoading(false);
         }

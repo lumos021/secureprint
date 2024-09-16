@@ -10,6 +10,7 @@ const UploadForm: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { setFilesData, selectedShop, setSessionId } = useFileData();
   const router = useRouter();
+  const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   const isShopOffline = selectedShop ? selectedShop.status === false : true;
 
@@ -29,7 +30,7 @@ const UploadForm: React.FC = () => {
       formData.append('userId', selectedShop.userId);
 
       try {
-        const response = await axios.post('http://localhost:5000/api/files/upload', formData, {
+        const response = await axios.post(`${apiUrl}/api/files/upload`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         setFilesData(response.data.files);

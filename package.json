@@ -1,6 +1,11 @@
 {
   "name": "root",
   "private": true,
+  "scripts": {
+  "start": "lerna run start --stream",
+  "build": "lerna run build --stream",
+  "test": "lerna run test --stream"
+},
   "workspaces": [
     "secureprint/backend",
     "secureprint/frontend",

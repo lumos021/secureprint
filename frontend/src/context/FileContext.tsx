@@ -56,6 +56,8 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const shopHandledRef = useRef(false);
   const router = useRouter();
 
+  const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
   const addFiles = (files: FileData[]) => {
     setFilesData((prevFiles) => [...prevFiles, ...files]);
   };
@@ -76,7 +78,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { shopId } = router.query;
 
         if (shopId) {
-          const shopResponse = await axios.get('http://localhost:5000/api/shop', { params: { shopId } });
+          const shopResponse = await axios.get(`${apiUrl}/api/shop`, { params: { shopId } });
 
           if (shopResponse.data && !shopResponse.data.message) {
             setSelectedShop(shopResponse.data);
@@ -124,7 +126,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
           }
 
-          const shopsResponse = await axios.get('http://localhost:5000/api/shops', {
+          const shopsResponse = await axios.get(`${apiUrl}/api/shops`, {
             params: userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : {}
           });
           setShops(shopsResponse.data.shops);  // Set nearest shops
@@ -149,7 +151,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const fetchShopStatus = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/api/shop-status');
+        const response = await axios.get(`${apiUrl}/api/shop-status`);
         setShopStatus(response.data);
       } catch (error) { 
         toast.error('Failed to fetch shop status');
