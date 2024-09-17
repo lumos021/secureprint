@@ -23,16 +23,20 @@ jobs:
       with:
         project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-    - name: Build and push Docker image
+    - name: Configure Docker to use gcloud as a credential helper for Artifact Registry
+      run: |
+        gcloud auth configure-docker us-central1-docker.pkg.dev
+
+    - name: Build and push Docker image to Artifact Registry
       run: |
           cd backend
-          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend:${{ github.sha }} .
-          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend:${{ github.sha }}
+          docker build -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend:${{ github.sha }} .
+          docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend:${{ github.sha }}
 
     - name: Deploy to Cloud Run
       run: |
         gcloud run deploy secureprint-backend \
-          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend:${{ github.sha }} \
+          --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend:${{ github.sha }} \
           --platform managed \
           --region us-central1 \
           --allow-unauthenticated
