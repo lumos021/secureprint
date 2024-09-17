@@ -1,6 +1,6 @@
 // workers/fileProcessingWorker.js
 const { parentPort } = require('worker_threads');
-const { handlePdfProcessing, handleImageProcessing, mergeProcessedPDFs } = require('../services/pdfService');
+const { handlePdfProcessing, handleImageProcessing, mergeProcessedPDFs } = require('../services/pdfService.js');
 
 parentPort.on('message', async (task) => {
     try {

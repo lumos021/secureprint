@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
-const logger = require('../utils/logger');
-const User = require('../models/userModel');
+const logger = require('../utils/logger.js');
+const User = require('../models/userModel.js');
 const wsMessageHandler = require('../utils/wsMessageHandler.js');
 
 const { updateShopStatus } = require('../utils/shopStatusCache.js'); // Update the path accordingly

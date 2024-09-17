@@ -1,8 +1,8 @@
   const fs = require('fs').promises;
   const path = require('path');
   const { PDFDocument, degrees } = require('pdf-lib');
-  const { convertToBlackAndWhite, rotatePDFToLandscape, mergeProcessedPDFs } = require('../utils/pdfUtils');
-  const logger = require('../utils/logger');
+  const { convertToBlackAndWhite, rotatePDFToLandscape, mergeProcessedPDFs } = require('../utils/pdfUtils.js');
+  const logger = require('../utils/logger.js');
 
   const handlePdfProcessing = async (filePath, processedFilePath, printSettings) => {
       const startTime = Date.now();

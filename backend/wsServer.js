@@ -1,6 +1,6 @@
 const WebSocket = require('ws');
 const logger = require('./utils/logger');
-const wsAuthMiddleware = require('./middleware/wsAuthMiddleware');
+const wsAuthMiddleware = require('./middleware/wsAuthMiddleware.js');
 
 const createWebSocketServer = (port) => {
   const wss = new WebSocket.Server({ port });
