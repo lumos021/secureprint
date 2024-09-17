@@ -1,17 +1,38 @@
 const fs = require('fs').promises;
 const path = require('path');
+
 const pdfUtilsPath = path.join(__dirname, '../utils/pdfUtils.js');
 const utilsDir = path.join(__dirname, '../utils');
-console.log('pdfUtils permissions:', fs.statSync(pdfUtilsPath).mode.toString(8));
-console.log('pdfUtils content:', fs.readFileSync(pdfUtilsPath, 'utf8'));
-console.log('Contents of utils directory:', fs.readdirSync(utilsDir));
-console.log('pdfUtils path:', pdfUtilsPath);
-console.log('pdfUtils exists:', fs.existsSync(pdfUtilsPath));
-const { PDFDocument, degrees } = require('pdf-lib');
+
+async function checkFiles() {
+  try {
+    const stats = await fs.stat(pdfUtilsPath);
+    console.log('pdfUtils permissions:', stats.mode.toString(8));
+
+    const content = await fs.readFile(pdfUtilsPath, 'utf8');
+    console.log('pdfUtils content:', content);
+
+    const dirContents = await fs.readdir(utilsDir);
+    console.log('Contents of utils directory:', dirContents);
+
+    console.log('pdfUtils path:', pdfUtilsPath);
+
+    try {
+      await fs.access(pdfUtilsPath);
+      console.log('pdfUtils exists: true');
+    } catch {
+      console.log('pdfUtils exists: false');
+    }
+  } catch (error) {
+    console.error('Error checking files:', error);
+  }
+}
+
+checkFiles();
+
 // Use absolute paths
-const { convertToBlackAndWhite, rotatePDFToLandscape, mergeProcessedPDFs } = require(
-  path.join(__dirname, '../utils/pdfUtils.js')
-);
+const { convertToBlackAndWhite, rotatePDFToLandscape, mergeProcessedPDFs } = require(pdfUtilsPath);
+const { PDFDocument, degrees } = require('pdf-lib');
 
 const logger = require('../utils/logger.js');
 
