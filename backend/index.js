@@ -26,7 +26,7 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id'], // Add 'x-session-id'
 };
 
-
+app.set('trust proxy', 1);
 app.use(cors(corsOptions));
 app.use(express.json());
 
