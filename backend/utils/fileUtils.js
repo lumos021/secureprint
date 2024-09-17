@@ -12,6 +12,7 @@ function validateFilename(filename) {
         return false;
     }
 
+    // Check for any potentially malicious characters
     const invalidChars = /[<>:"/\\|?*\x00-\x1F]/g;
     return !invalidChars.test(filename);
 }
