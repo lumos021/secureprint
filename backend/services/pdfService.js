@@ -1,5 +1,12 @@
 const fs = require('fs').promises;
 const path = require('path');
+const pdfUtilsPath = path.join(__dirname, '../utils/pdfUtils.js');
+const utilsDir = path.join(__dirname, '../utils');
+console.log('pdfUtils permissions:', fs.statSync(pdfUtilsPath).mode.toString(8));
+console.log('pdfUtils content:', fs.readFileSync(pdfUtilsPath, 'utf8'));
+console.log('Contents of utils directory:', fs.readdirSync(utilsDir));
+console.log('pdfUtils path:', pdfUtilsPath);
+console.log('pdfUtils exists:', fs.existsSync(pdfUtilsPath));
 const { PDFDocument, degrees } = require('pdf-lib');
 // Use absolute paths
 const { convertToBlackAndWhite, rotatePDFToLandscape, mergeProcessedPDFs } = require(
