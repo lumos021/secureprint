@@ -16,7 +16,6 @@ const { v4: uuidv4 } = require('uuid');
 
 const wss = new WebSocket.Server({ port: 5553 });
 
-// WebSocket server event listeners
 wss.on('connection', (ws, req) => {
   const clientIp = req.socket.remoteAddress;
   logger.info('WebSocket client connected', { clientIp });
