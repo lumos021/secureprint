@@ -5,5 +5,5 @@
   "maxRetries": 10,
   "retryDelay": 1000,
   "clientName": "Default Client Name",
-  "apiUrl": "http://localhost:5000"
+  "apiUrl": "https://secureprint-backend-266910210082.us-central1.run.app/"
 }

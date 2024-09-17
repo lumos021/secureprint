@@ -22,7 +22,7 @@ const argv = yargs(hideBin(process.argv))
   })
   .option('api-url', {
     description: 'API server URL',
-    default: localConfig.apiUrl || 'http://localhost:5000'
+    default: localConfig.apiUrl || 'https://secureprint-backend-266910210082.us-central1.run.app/'
   })
   .option('max-retries', {
     description: 'Maximum number of WebSocket reconnection attempts',
