@@ -30,7 +30,6 @@ async function checkFiles() {
 
 checkFiles();
 
-// Use absolute paths
 const { convertToBlackAndWhite, rotatePDFToLandscape, mergeProcessedPDFs } = require(pdfUtilsPath);
 const { PDFDocument, degrees } = require('pdf-lib');
 
