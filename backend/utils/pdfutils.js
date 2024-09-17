@@ -4,7 +4,7 @@ const { PDFDocument, degrees } = require('pdf-lib');
 const { exec } = require('child_process');
 const os = require('os');
 const util = require('util');
-const logger = require('../utils/logger.js');
+const logger = require('./logger.js');
 
 
 const execAsync = util.promisify(exec);
