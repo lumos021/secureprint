@@ -29,14 +29,14 @@ jobs:
 
     - name: Build and push Docker image to Artifact Registry
       run: |
-          cd backend
-          docker build -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend:${{ github.sha }} .
-          docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend:${{ github.sha }}
+        cd backend
+        docker build -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend/secureprint-backend:${{ github.sha }} .
+        docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend/secureprint-backend:${{ github.sha }}
 
     - name: Deploy to Cloud Run
       run: |
         gcloud run deploy secureprint-backend \
-          --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend:${{ github.sha }} \
+          --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/secureprint-backend/secureprint-backend:${{ github.sha }} \
           --platform managed \
           --region us-central1 \
           --allow-unauthenticated
