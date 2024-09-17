@@ -1,7 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 
-const pdfUtilsPath = path.join(__dirname, '../utils/pdfUtils.js');
+const pdfUtilsPath = path.join(__dirname, '../utils/utils.js');
 const utilsDir = path.join(__dirname, '../utils');
 
 async function checkFiles() {
