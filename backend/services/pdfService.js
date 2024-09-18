@@ -2,33 +2,6 @@ const fs = require('fs').promises;
 const path = require('path');
 
 const pdfUtilsPath = path.join(__dirname, '../utils/utils.js');
-const utilsDir = path.join(__dirname, '../utils');
-
-async function checkFiles() {
-  try {
-    const stats = await fs.stat(pdfUtilsPath);
-    console.log('pdfUtils permissions:', stats.mode.toString(8));
-
-    const content = await fs.readFile(pdfUtilsPath, 'utf8');
-    console.log('pdfUtils content:', content);
-
-    const dirContents = await fs.readdir(utilsDir);
-    console.log('Contents of utils directory:', dirContents);
-
-    console.log('pdfUtils path:', pdfUtilsPath);
-
-    try {
-      await fs.access(pdfUtilsPath);
-      console.log('pdfUtils exists: true');
-    } catch {
-      console.log('pdfUtils exists: false');
-    }
-  } catch (error) {
-    console.error('Error checking files:', error);
-  }
-}
-
-checkFiles();
 
 const { convertToBlackAndWhite, rotatePDFToLandscape, mergeProcessedPDFs } = require(pdfUtilsPath);
 const { PDFDocument, degrees } = require('pdf-lib');
