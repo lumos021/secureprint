@@ -110,38 +110,69 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const fetchShopsBasedOnLocation = async () => {
       try {
         if (!shopHandledRef.current) {
-          // Fetch shops based on location if shop was not handled
           let userLocation = null;
           if ('geolocation' in navigator) {
             try {
-              const position = await new Promise<GeolocationPosition>((resolve, reject) =>
-                navigator.geolocation.getCurrentPosition(resolve, reject)
-              );
+              const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                  timeout: 10000,
+                  maximumAge: 0,
+                  enableHighAccuracy: true
+                });
+              });
               userLocation = {
                 lat: position.coords.latitude,
                 lng: position.coords.longitude,
               };
             } catch (geoError) {
-              toast.error('Failed to fetch location');
+              console.error('Geolocation error:', geoError);
+              if (geoError.code === 1) {
+                toast.error('Location access deniedby the browser. Please allow access in the browser settings.');
+              } else if (geoError.code === 2) {
+                toast.error('Location unavailable. Using default location.');
+              } else {
+                toast.error('Failed to fetch location. Using default location.');
+              }
+              // Use a default location or IP-based geolocation here
+              userLocation = await fetchDefaultLocation();
             }
+          } else {
+            toast.warn('Geolocation not supported. Using default location.');
+            userLocation = await fetchDefaultLocation();
           }
-
+    
           const shopsResponse = await axios.get(`${apiUrl}/api/shops`, {
             params: userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : {}
           });
-          setShops(shopsResponse.data.shops);  // Set nearest shops
+          setShops(shopsResponse.data.shops);
           const newShopStatus = shopsResponse.data.shops.reduce((statusObj, shop) => {
-            statusObj[shop.userId] = shop.status; // Assuming each shop object has a status field
+            statusObj[shop.userId] = shop.status;
             return statusObj;
           }, {});
-
+    
           setShopStatus((prevStatus) => ({
             ...prevStatus,
             ...newShopStatus,
           }));
         }
       } catch (error) {
+        console.error('Error fetching shops:', error);
         toast.error('Failed to fetch shops based on location');
+      }
+    };
+    
+    // Function to fetch a default location (e.g., based on IP)
+    const fetchDefaultLocation = async () => {
+      try {
+        const response = await axios.get('https://ipapi.co/json/');
+        return {
+          lat: response.data.latitude,
+          lng: response.data.longitude
+        };
+      } catch (error) {
+        console.error('Error fetching default location:', error);
+        // Return a hardcoded default location as a last resort
+        return { lat: 0, lng: 0 };
       }
     };
 

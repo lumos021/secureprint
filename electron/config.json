@@ -1,5 +1,5 @@
 {
-  "wsUrl": "ws://localhost:5553",
+  "wsUrl": "ws://secureprint-backend-266910210082.us-central1.run.app:5553",
   "wsAuthToken": "",
   "debug": true,
   "maxRetries": 10,

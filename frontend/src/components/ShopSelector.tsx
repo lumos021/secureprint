@@ -42,17 +42,23 @@ const ShopSelector: React.FC = () => {
             <li
               key={shop.userId}
               onClick={() => handleShopSelect(shop)}
-              className={`px-4 py-3 cursor-pointer hover:bg-indigo-50 flex items-center justify-between ${selectedShop?.userId === shop.userId ? 'bg-indigo-100' : ''}`}
+              className={`px-4 py-3 cursor-pointer hover:bg-indigo-50 ${selectedShop?.userId === shop.userId ? 'bg-indigo-100' : ''}`}
             >
-              <div className="flex items-center">
-                <FaMapMarkerAlt className="text-indigo-500 mr-2" />
-                <span className="font-medium text-gray-900">{shop.name}</span>
-                <span className="ml-2 text-sm text-gray-600">{shop.address}</span>
+              <div className="flex items-start">
+                <div className="flex-shrink-0 mt-1">
+                  <FaMapMarkerAlt className="text-indigo-500 text-lg" />
+                </div>
+                <div className="ml-3 flex-grow">
+                  <div className="font-medium text-gray-900">{shop.name}</div>
+                  <div className="text-sm text-gray-600">{shop.address}</div>
+                </div>
+                <div className="flex-shrink-0 ml-2">
+                  <div
+                    className={`w-3 h-3 rounded-full ${shopStatus[shop.userId] ? 'bg-green-500' : 'bg-red-500'}`}
+                    title={shopStatus[shop.userId] ? 'Online' : 'Offline'}
+                  ></div>
+                </div>
               </div>
-              <div
-                className={`w-3 h-3 rounded-full ml-4 ${shopStatus[shop.userId] ? 'bg-green-500' : 'bg-red-500'}`}
-                title={shopStatus[shop.userId] ? 'Online' : 'Offline'}
-              ></div>
             </li>
           ))}
       </ul>

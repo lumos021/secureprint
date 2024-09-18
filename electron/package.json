@@ -1,21 +1,46 @@
 {
   "name": "secprint",
   "version": "1.0.0",
+  "description": "Secure printing application",
   "main": "src/main/index.js",
+  "build": {
+    "appId": "com.abc.secureprint",
+    "mac": {
+      "category": "secureprint.app.print"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        },
+        {
+          "target": "msi",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ]
+    },
+    "icon": "/icon.ico"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:css": "npx postcss src/renderer/css/styles.css -o src/renderer/css/output.css",
     "start": "npm run build:css && electron --trace-warnings --enable-logging .",
-    "rebuild": "electron-rebuild"
+    "postinstall": "electron-builder install-app-deps",
+    "build": "electron-builder build --mac --win --linux",
+    "build:mac": "electron-builder build --mac",
+    "build:win": "electron-builder build --win --ia32 --x64",
+    "build:linux": "electron-builder build --linux"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
-  "devDependencies": {
-    "electron": "^31.0.2",
-    "electron-rebuild": "^3.2.9"
-  },
   "dependencies": {
     "autoprefixer": "^10.4.20",
     "axios": "^1.7.2",
@@ -25,12 +50,15 @@
     "pdfjs-dist": "^2.9.359",
     "postcss": "^8.4.41",
     "postcss-cli": "^11.0.0",
-    "printer": "^0.4.0",
     "tailwindcss": "^3.4.10",
     "wake_on_lan": "^1.0.0",
     "winreg": "^1.2.5",
     "winston": "^3.13.0",
     "ws": "^8.17.1",
     "yargs": "^17.7.2"
+  },
+  "devDependencies": {
+    "electron": "^31.0.2",
+    "electron-builder": "^25.0.5"
   }
 }
