@@ -13,7 +13,7 @@ if (fs.existsSync(localConfigPath)) {
 const argv = yargs(hideBin(process.argv))
   .option('ws-url', {
     description: 'WebSocket server URL',
-    default: localConfig.wsUrl || 'ws://secureprint-backend-266910210082.us-central1.run.app:5553'
+    default: localConfig.wsUrl || 'wss://secureprint-backend-266910210082.us-central1.run.app'
   })
   .option('debug', {
     description: 'Enable debug mode',
