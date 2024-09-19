@@ -43,8 +43,9 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 mongoose.connect(process.env.MONGODB_URI, {
   maxPoolSize: 10,
   maxIdleTimeMS:60000,
-  keepAlive: true,
-  keepAliveInitialDelay: 300000, 
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+  family: 4
 })
 .then(() => logger.info('MongoDB connected with connection pooling'))
 .catch(e => logger.error('MongoDB connection error:', e));
