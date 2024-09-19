@@ -37,7 +37,7 @@ const Preview: React.FC = () => {
   }), []);
 
   const axiosInstance = useMemo(() => axios.create({
-    baseURL: apiUrl,
+    baseURL: 'http://localhost:5000',
     headers: {
       'X-Session-ID': sessionId || '',
     },

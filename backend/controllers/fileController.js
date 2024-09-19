@@ -17,7 +17,8 @@ const defaultPrintSettings = {
     orientation: 'portrait'
 };
 
-const uploadFiles = async (req, res) => {
+
+  const uploadFiles = async (req, res) => {
     const startTime = Date.now();
     logger.info('File upload request received', { requestId: req.requestId });
   
@@ -26,8 +27,7 @@ const uploadFiles = async (req, res) => {
         return res.status(400).json({ message: 'No files uploaded' });
       }
   
-      // Use /tmp for Cloud Run
-      const uploadDir = path.resolve('/tmp/uploads');
+      const uploadDir = path.join(__dirname, '..', 'uploads');
       await ensureDirectoryExists(uploadDir);
   
       const invalidFiles = req.files.filter((file) => !isValidFileType(file.mimetype));
@@ -50,41 +50,15 @@ const uploadFiles = async (req, res) => {
   
       await Promise.all(
         req.files.map(async (file, index) => {
-          try {
-            const srcPath = path.resolve(file.path);
-            const destPath = path.resolve(fileData[index].path);
-            
-            logger.info('Copying file', {
-              src: srcPath,
-              dest: destPath,
-              requestId: req.requestId,
-            });
-  
-            await fs.copyFile(srcPath, destPath);
-            await fs.unlink(srcPath);  // Delete the original after copying
-  
-            const stats = await fs.stat(destPath);
-            const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
-            
-            logger.info('File saved', {
-              filename: file.originalname,
-              size: `${fileSizeMB} MB`,
-              requestId: req.requestId,
-            });
-  
-            // If using Google Cloud Storage
-            // await uploadToGCS(destPath, sanitizeFilename(file.originalname));
-  
-            sessionManager.addFileToSession(sessionId, fileData[index]);
-          } catch (error) {
-            logger.error('Error processing file', {
-              error: error.message,
-              stack: error.stack,
-              filename: file.originalname,
-              requestId: req.requestId,
-            });
-            throw error;  // Re-throw to be caught by the outer try-catch
-          }
+          await fs.rename(file.path, fileData[index].path);
+          const stats = await fs.stat(fileData[index].path);
+          const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+          logger.info('File saved', {
+            filename: file.originalname,
+            size: `${fileSizeMB} MB`,
+            requestId: req.requestId,
+          });
+          sessionManager.addFileToSession(sessionId, fileData[index]);
         })
       );
   
@@ -107,7 +81,7 @@ const uploadFiles = async (req, res) => {
       res.status(500).json({ message: 'Error uploading files. Please try again later.' });
     }
   };
-  
+
   const ensureDirectoryExists = async (directory) => {
     try {
       await fs.access(directory);
@@ -115,6 +89,7 @@ const uploadFiles = async (req, res) => {
       await fs.mkdir(directory, { recursive: true });
     }
   };
+
 
 const downloadFile = async (req, res) => {
     const startTime = Date.now();
