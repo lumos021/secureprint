@@ -62,12 +62,19 @@ const connectWithRetry = () => {
 connectWithRetry();
 
 // Graceful shutdown
+// Graceful shutdown
 const gracefulShutdown = () => {
-  mongoose.connection.close(false, () => {
-    logger.info('MongoDB connection closed through app termination');
-    process.exit(0);
-  });
+  mongoose.connection.close()
+    .then(() => {
+      logger.info('MongoDB connection closed through app termination');
+      process.exit(0);
+    })
+    .catch((err) => {
+      logger.error('Error while closing MongoDB connection', err);
+      process.exit(1);
+    });
 };
+
 
 // Listen for termination signals
 process.on('SIGINT', gracefulShutdown);

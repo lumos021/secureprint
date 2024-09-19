@@ -4,6 +4,9 @@ FROM node:22.2.0
 # Set the working directory in the container
 WORKDIR /usr/src/app
 
+# Install Ghostscript
+RUN apt-get update && apt-get install -y ghostscript
+
 # Copy package.json and package-lock.json (or yarn.lock)
 COPY package*.json ./
 
