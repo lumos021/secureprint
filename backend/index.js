@@ -40,15 +40,48 @@ app.use('/api', shopRoutes);
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-mongoose.connect(process.env.MONGODB_URI, {
-  maxPoolSize: 10,
-  maxIdleTimeMS:60000,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-  family: 4
-})
-.then(() => logger.info('MongoDB connected with connection pooling'))
-.catch(e => logger.error('MongoDB connection error:', e));
+
+// MongoDB connection
+const connectWithRetry = () => {
+  mongoose.connect(process.env.MONGODB_URI, {
+    maxPoolSize: 10,
+    maxIdleTimeMS:60000,
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+    family: 4
+  })
+  .then(() => {
+    logger.info('MongoDB connected successfully');
+  })
+  .catch((err) => {
+    logger.error('MongoDB connection unsuccessful, retry after 5 seconds.', err);
+    setTimeout(connectWithRetry, 5000);
+  });
+};
+
+connectWithRetry();
+
+// Graceful shutdown
+const gracefulShutdown = () => {
+  mongoose.connection.close(false, () => {
+    logger.info('MongoDB connection closed through app termination');
+    process.exit(0);
+  });
+};
+
+// Listen for termination signals
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
+
+// mongoose.connect(process.env.MONGODB_URI, {
+//   maxPoolSize: 10,
+//   maxIdleTimeMS:60000,
+//   serverSelectionTimeoutMS: 5000,
+//   socketTimeoutMS: 45000,
+//   family: 4
+// })
+// .then(() => logger.info('MongoDB connected with connection pooling'))
+// .catch(e => logger.error('MongoDB connection error:', e));
 
 
 server.listen(PORT, () => {
