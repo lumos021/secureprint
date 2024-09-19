@@ -17,7 +17,15 @@ const defaultPrintSettings = {
     orientation: 'portrait'
 };
 
-const uploadFiles = async (req, res) => {
+const ensureDirectoryExists = async (directory) => {
+    try {
+      await fs.access(directory);
+    } catch (err) {
+      await fs.mkdir(directory, { recursive: true });
+    }
+  };
+
+  const uploadFiles = async (req, res) => {
     const startTime = Date.now();
     logger.info('File upload request received', { requestId: req.requestId });
   
@@ -25,6 +33,9 @@ const uploadFiles = async (req, res) => {
       if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'No files uploaded' });
       }
+  
+      const uploadDir = path.join(__dirname, '..', 'uploads');
+      await ensureDirectoryExists(uploadDir);
   
       const invalidFiles = req.files.filter((file) => !isValidFileType(file.mimetype));
       if (invalidFiles.length > 0) {
@@ -37,7 +48,7 @@ const uploadFiles = async (req, res) => {
       const fileData = req.files.map((file) => ({
         filename: sanitizeFilename(file.originalname),
         originalname: file.originalname,
-        path: getResolvedFilePath(sanitizeFilename(file.originalname)),
+        path: path.join(uploadDir, sanitizeFilename(file.originalname)),
         size: file.size,
         mimetype: file.mimetype,
         uploadDate: new Date(),
@@ -77,7 +88,6 @@ const uploadFiles = async (req, res) => {
       res.status(500).json({ message: 'Error uploading files. Please try again later.' });
     }
   };
-  
 
 const downloadFile = async (req, res) => {
     const startTime = Date.now();
@@ -432,53 +442,6 @@ const deleteFile = async (req, res) => {
     }
 };
 
-// const cleanupAfterFinalize = async (session, finalFilename) => {
-//     const filesToDelete = [];
-
-//     // Add original and processed files
-//     for (const file of session.files) {
-//         filesToDelete.push(getResolvedFilePath(file.filename));
-//         if (file.processedFilename) {
-//             filesToDelete.push(getResolvedFilePath(file.processedFilename));
-//         }
-//     }
-
-//     // Add the final merged file
-//     filesToDelete.push(getResolvedFilePath(finalFilename));
-
-//     // Delete files from uploads directory
-//     for (const filePath of filesToDelete) {
-//         try {
-//             await fs.unlink(filePath);
-//             logger.info(`Deleted file: ${filePath}`);
-//         } catch (error) {
-//             if (error.code !== 'ENOENT') {
-//                 logger.warn(`Failed to delete file: ${filePath}`, { error: error.message });
-//             }
-//         }
-//     }
-
-//     // Delete files from database
-//     const filenames = session.files.map(file => sanitizeFilename(file.filename));
-//     const processedFilenames = session.files
-//         .filter(file => file.processedFilename)
-//         .map(file => file.processedFilename);
-
-//     await File.deleteMany({
-//         $or: [
-//             { filename: { $in: filenames } },
-//             { processedFilename: { $in: processedFilenames } }
-//         ]
-//     });
-
-//     // Clear the session
-//     sessionManager.clearSession(session.id);
-
-//     logger.info('Cleanup completed', {
-//         sessionId: session.id,
-//         deletedFilesCount: filesToDelete.length
-//     });
-// };
 const cleanupInactiveSessions = async () => {
     const sessions = sessionManager.getAllSessions();
     const now = Date.now();
