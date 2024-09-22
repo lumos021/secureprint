@@ -176,7 +176,9 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     };
 
-    fetchShopsAndStatus();
+    if (router.pathname === '/') {
+      fetchShopsAndStatus();
+    }
   }, [router.isReady, router.query]);
 
   useEffect(() => {

@@ -1,25 +1,32 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react'; 
 import { useFileData } from '../context/FileContext';
 import axios from 'axios';
 import { FaCloudUploadAlt } from 'react-icons/fa';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
+import LoadingScreen from './LoadingScreen';
+
 
 const UploadForm: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { setFilesData, selectedShop, setSessionId } = useFileData();
+  const { setFilesData, selectedShop, shopStatus,setSessionId } = useFileData();
   const router = useRouter();
   const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-  const isShopOffline = selectedShop ? selectedShop.status === false : true;
+
+  const [isShopOffline, setIsShopOffline] = useState(true);
 
   const handleButtonClick = () => {
     if (selectedShop && fileInputRef.current && !isShopOffline) {
       fileInputRef.current.click();
     }
   };
-
+  useEffect(() => {
+    if (selectedShop) {
+      setIsShopOffline(shopStatus[selectedShop.userId] === false);
+    }
+  }, [selectedShop, shopStatus]);
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0 && selectedShop) {
       setIsUploading(true);
@@ -48,6 +55,9 @@ const UploadForm: React.FC = () => {
       }
     }
   };
+  if (isUploading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <div className="mt-8">

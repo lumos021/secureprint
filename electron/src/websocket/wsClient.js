@@ -52,15 +52,17 @@ class WSClient {
         this.sendInitialState();
         this.sendQueuedMessages();
         // Send authentication message
-        authManager.getUserId().then((clientId) => {
-            this.sendMessage({
-                type: 'auth',
-                clientId: clientId, // Ensure this is correctly set
-                authenticated: true
+        setTimeout(() => {
+            authManager.getUserId().then((clientId) => {
+                this.sendMessage({
+                    type: 'auth',
+                    clientId: clientId,
+                    authenticated: true
+                });
+            }).catch((error) => {
+                logger.error('Failed to get userId for authentication:', error);
             });
-        }).catch((error) => {
-            logger.error('Failed to get userId for authentication:', error);
-        });
+        }, 1000);
     }
 
     onMessage(data) {
@@ -116,7 +118,8 @@ class WSClient {
     }
 
     handleAuthMessage(message) {
-        if (message.status === 'success') {
+        logger.info(`Auth message received: ${JSON.stringify(message)}`, this.mainWindow);
+        if (message.authenticated) {
             logger.info('Authentication successful', this.mainWindow);
             this.sendPrinterStatus();
         } else {
@@ -217,8 +220,9 @@ class WSClient {
 
     sendMessage(message) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify(message));
-            logger.info(`WebSocket message sent: ${JSON.stringify(message)}`, this.mainWindow);
+            const messageString = JSON.stringify(message);
+            this.ws.send(messageString);
+            logger.info(`WebSocket message sent: ${messageString}`, this.mainWindow);
         } else {
             this.messageQueue.push(message);
             logger.warn('WebSocket not connected. Message queued.', this.mainWindow);
@@ -235,17 +239,19 @@ class WSClient {
         }
     }
 
-    sendInitialState() {
-        const status = {
-            type: 'initial_state',
-            data: {
-                clientId: authManager.getUserId(),
-                printerStatus: printQueue.getPrinterStatus(),
-                queueStatus: printQueue.getQueueStatus()
-            }
-        };
-        this.sendMessage(status);
-    }
+ async sendInitialState() {
+    const clientId = await authManager.getUserId();
+    const status = {
+        type: 'initial_state',
+        data: {
+            clientId: clientId,
+            printerStatus: printQueue.getPrinterStatus(),
+            queueStatus: printQueue.getQueueStatus()
+        }
+    };
+    this.sendMessage(status);
+}
+
 
     sendStatus() {
         const status = {
@@ -261,8 +267,10 @@ class WSClient {
     // Method to be called when the application is shutting down
     shutdown() {
         logger.info('Shutting down WebSocket client', this.mainWindow);
+        clearTimeout(this.reconnectTimeout); // Clear any reconnect attempts
         this.close();
     }
+    
 }
 
 module.exports = new WSClient();

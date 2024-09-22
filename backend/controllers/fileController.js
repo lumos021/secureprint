@@ -335,7 +335,7 @@ const finalizeFiles = async (req, res, wss) => {
         // Set the merged filename in the session
         sessionManager.setMergedFilename(sessionId, finalFilename);
 
-        const electronResponse = await sendPDFToElectronApp(finalFilePath, wss, clientId, printSettings);
+        const electronResponse = await sendPDFToElectronApp(finalFilePath, clientId, printSettings);
 
         // After successful sending to Electron app, perform cleanup
         await sessionManager.cleanupSession(session);

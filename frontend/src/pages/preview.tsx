@@ -8,6 +8,7 @@ import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import PrintStatusModal from '../components/PrintStatusModal';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 import dynamic from 'next/dynamic';
 const Document = dynamic(() => import('react-pdf').then(mod => mod.Document), { ssr: false });
 const Page = dynamic(() => import('react-pdf').then(mod => mod.Page), { ssr: false });
@@ -37,7 +38,7 @@ const Preview: React.FC = () => {
   }), []);
 
   const axiosInstance = useMemo(() => axios.create({
-    baseURL: 'http://localhost:5000',
+    baseURL: apiUrl,
     headers: {
       'X-Session-ID': sessionId || '',
     },
@@ -271,7 +272,9 @@ useEffect(() => {
       <h2 className="text-3xl font-bold mb-8 text-center text-indigo-600">Printout Preview</h2>
       <div className="w-full overflow-x-scroll flex items-center gap-6 justify-start pb-6 bg-gray-100 rounded-lg no-scrollbar">
         {loading ? (
-          <p className="text-center text-gray-600">Loading file preview...</p>
+          <div className="w-full flex justify-center">
+          <LoadingSpinner />
+        </div>
         ) : (
           processedFileUrls.length > 0 ? (
             processedFileUrls.map((url, index) => (
@@ -287,6 +290,7 @@ useEffect(() => {
                     onLoadError={(error) => {
                       setError('Error loading document');
                     }}
+                    loading={<LoadingSpinner />}
                   >
                     <div className="flex items-center justify-center" style={{ height: '100%' }}>
                       <Page
