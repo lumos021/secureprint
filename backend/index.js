@@ -9,6 +9,8 @@ const authRoutes = require('./routes/authRoutes');
 const shopRoutes = require('./routes/shopRoutes');
 const fileRoutes = require('./routes/fileRoutes');
 const createWebSocketServer = require('./wsServer.js');
+require('./utils/cleanup.js');
+
 
 dotenv.config();
 

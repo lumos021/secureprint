@@ -62,7 +62,7 @@ class WSClient {
             }).catch((error) => {
                 logger.error('Failed to get userId for authentication:', error);
             });
-        }, 1000);
+        }, 2000);
     }
 
     onMessage(data) {
