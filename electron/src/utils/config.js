@@ -13,7 +13,7 @@ if (fs.existsSync(localConfigPath)) {
 const argv = yargs(hideBin(process.argv))
   .option('ws-url', {
     description: 'WebSocket server URL',
-    default: localConfig.wsUrl || 'wss://secureprint-backend-266910210082.us-central1.run.app'
+    default: localConfig.wsUrl || 'wss://secureprint-backend-south-266910210082.asia-south1.run.app'
   })
   .option('debug', {
     description: 'Enable debug mode',
@@ -22,7 +22,7 @@ const argv = yargs(hideBin(process.argv))
   })
   .option('api-url', {
     description: 'API server URL',
-    default: localConfig.apiUrl || 'https://secureprint-backend-266910210082.us-central1.run.app'
+    default: localConfig.apiUrl || 'https://secureprint-backend-south-266910210082.asia-south1.run.app'
   })
   .option('max-retries', {
     description: 'Maximum number of WebSocket reconnection attempts',

@@ -53,10 +53,10 @@ const getShopById = async (req, res) => {
     }
   };
   
-  // Route to get the nearest shops or the first 5 shops
   const getNearestShops = async (req, res) => {
     try {
       const { lat, lng } = req.query;
+      const userLocation = lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : null;
   
       // Fetch all shops
       let shops = await User.find({ isShop: true }).select('userId name address shopDetails.location');
@@ -72,15 +72,23 @@ const getShopById = async (req, res) => {
   
       let shopsWithStatus = shops.map(formatShop);
   
-      // If lat and lng are provided, sort by distance
-      if (lat && lng) {
-        const userLocation = { lat: parseFloat(lat), lng: parseFloat(lng) };
+      // Calculate distances if user location is provided
+      if (userLocation) {
         shopsWithStatus = shopsWithStatus.filter(shop => shop.shopDetails.location);
         shopsWithStatus.forEach(shop => {
           shop.distance = getDistance(userLocation, shop.shopDetails.location);
         });
-        shopsWithStatus.sort((a, b) => a.distance - b.distance);
       }
+  
+      // Sort shops: online shops first, then by distance
+      shopsWithStatus.sort((a, b) => {
+        if (a.status === b.status) {
+          // If both shops have the same status, sort by distance
+          return (a.distance || Infinity) - (b.distance || Infinity);
+        }
+        // Otherwise, prioritize online shops
+        return b.status - a.status;
+      });
   
       // Limit to 5 shops
       const limitedShops = shopsWithStatus.slice(0, 5);
@@ -91,7 +99,6 @@ const getShopById = async (req, res) => {
       res.status(500).json({ message: 'Error fetching shops', error: error.message });
     }
   };
-  
   
 
 router.get('/shops', getNearestShops);
