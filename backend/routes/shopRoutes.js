@@ -56,27 +56,31 @@ const getShopById = async (req, res) => {
   const getNearestShops = async (req, res) => {
     try {
       const { lat, lng } = req.query;
-      const userLocation = lat && lng ? [parseFloat(lng), parseFloat(lat)] : null;
-  
-      const limit = 5; // Number of shops to return
-      const matchCondition = { isShop: true }; // Match only shops
-  
-      if (userLocation) {
-        // Add geo query if location is provided
-        matchCondition["shopDetails.location"] = {
-          $near: {
-            $geometry: {
-              type: "Point",
-              coordinates: userLocation,
-            },
-            $maxDistance: 5000, // 5km radius
-          },
-        };
+      if (!lat || !lng) {
+        return res.status(400).json({ message: 'Latitude and Longitude are required' });
       }
   
+      const userLocation = [parseFloat(lng), parseFloat(lat)]; // Coordinates for geospatial query
+      const limit = 5; // Limit the number of shops to return
+  
+      // Use $geoNear as the first stage in the aggregation pipeline
       const shops = await User.aggregate([
         {
-          $match: matchCondition, // Match shops based on location
+          $geoNear: {
+            near: {
+              type: "Point",
+              coordinates: userLocation
+            },
+            distanceField: "distance",
+            spherical: true,
+            maxDistance: 5000, // 5km radius
+          }
+        },
+        {
+          $match: { isShop: true } // Match only shops
+        },
+        {
+          $limit: limit // Limit to top 5 shops
         },
         {
           $project: {
@@ -84,32 +88,21 @@ const getShopById = async (req, res) => {
             name: 1,
             address: 1,
             location: "$shopDetails.location",
-            distance: {
-              // Calculate distance to the user's location
-              $geoNear: { near: userLocation, distanceField: "distance" },
-            },
-          },
-        },
-        {
-          $sort: {
-            distance: 1, // Sort by distance (nearest first)
-          },
-        },
-        {
-          $limit: limit, // Limit to top 5 shops
-        },
+            distance: 1 // Keep the distance field for sorting
+          }
+        }
       ]);
   
-      // Check the online status using the local cache and add it to the results
+      // Use local cache to check the online status of shops
       const shopsWithStatus = shops.map(shop => {
-        const isOnline = getShopStatus(shop.userId); // Use local cache to check status
+        const isOnline = getShopStatus(shop.userId); // Check status from local cache
         return {
           ...shop,
-          status: isOnline ? 'online' : 'offline', // Add the status
+          status: isOnline ? 'online' : 'offline' // Add the status to the shop details
         };
       });
   
-      // Return shops along with their status
+      // Return the shops with their status
       res.status(200).json({ shops: shopsWithStatus });
     } catch (error) {
       console.error('Error fetching shops:', error.message);
