@@ -1,4 +1,4 @@
-// backend/utils/fileUtils.js
+// backend/utils/fileUtils
 const path = require('path');
 const config = require('../config.js');
 

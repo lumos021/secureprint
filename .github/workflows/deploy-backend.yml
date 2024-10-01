@@ -27,10 +27,13 @@ jobs:
         gcloud auth configure-docker asia-south1-docker.pkg.dev
 
     # Optional: This step should only run once (or when needed), you may skip it if the repository is already created.
-    - name: Create Artifact Registry repository
+    - name: Check and Create Artifact Registry repository
       run: |
-        gcloud artifacts repositories create secureprint-backend --repository-format=docker \
-        --location=asia-south1 --description="Docker repository for secureprint backend" --project=${{ secrets.GCP_PROJECT_ID }}
+        if ! gcloud artifacts repositories describe secureprint-backend --location=asia-south1 --project=${{ secrets.GCP_PROJECT_ID }}; then
+          gcloud artifacts repositories create secureprint-backend --repository-format=docker \
+          --location=asia-south1 --description="Docker repository for secureprint backend" \
+          --project=${{ secrets.GCP_PROJECT_ID }}
+        fi
 
     - name: Build and push Docker image to Artifact Registry
       run: |
