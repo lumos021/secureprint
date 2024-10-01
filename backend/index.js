@@ -63,7 +63,6 @@ const connectWithRetry = () => {
 
 connectWithRetry();
 
-// Graceful shutdown
 const gracefulShutdown = () => {
   mongoose.connection.close()
     .then(() => {
