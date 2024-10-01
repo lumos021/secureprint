@@ -95,13 +95,13 @@ const handleLogin = async (event) => {
 const handleRegistration = async (event) => {
   event.preventDefault();
   clearErrors();
-  const { name, email, registerPassword, address, isShopCheckbox, latitudeInput, longitudeInput } = elements;
+  const { nameInput, emailInput, registerPasswordInput, addressInput, isShopCheckbox, latitudeInput, longitudeInput } = elements;
   
   const registrationData = {
-      name: name.value,
-      email: email.value,
-      password: registerPassword.value,
-      address: address.value,
+      name: nameInput.value,
+      email: emailInput.value,
+      password: registerPasswordInput.value,
+      address: addressInput.value,
       isShop: isShopCheckbox.checked
   };
 

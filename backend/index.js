@@ -64,7 +64,6 @@ const connectWithRetry = () => {
 connectWithRetry();
 
 // Graceful shutdown
-// Graceful shutdown
 const gracefulShutdown = () => {
   mongoose.connection.close()
     .then(() => {
@@ -81,16 +80,6 @@ const gracefulShutdown = () => {
 // Listen for termination signals
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
-
-// mongoose.connect(process.env.MONGODB_URI, {
-//   maxPoolSize: 10,
-//   maxIdleTimeMS:60000,
-//   serverSelectionTimeoutMS: 5000,
-//   socketTimeoutMS: 45000,
-//   family: 4
-// })
-// .then(() => logger.info('MongoDB connected with connection pooling'))
-// .catch(e => logger.error('MongoDB connection error:', e));
 
 
 server.listen(PORT, () => {

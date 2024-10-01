@@ -1,6 +1,8 @@
 // models/userModel.js
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const url =  process.env.FRONTEND_URL;
+
 
 const userSchema = new mongoose.Schema({
   userId: { type: String, unique: true, required: true },
@@ -27,7 +29,7 @@ userSchema.pre('save', async function(next) {
     // Generate QR code for shop
     const QRCode = require('qrcode');
     try {
-      this.shopDetails.qrCode = await QRCode.toDataURL(`http://localhost:3000/shop/${this.userId}`);
+      this.shopDetails.qrCode = await QRCode.toDataURL(`${url}/shop/${this.userId}`);
     } catch (error) {
       console.error('Error generating QR code:', error);
     }
