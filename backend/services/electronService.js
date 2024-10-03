@@ -62,7 +62,6 @@ const sendPDFToElectronApp = async (pdfFilePath, userId, printSettings) => {
         const sendChunksToClient = async (clientWs) => {
             return new Promise((resolve, reject) => {
                 let offset = 0;
-                const jobId = Date.now().toString();
 
                 const sendNextChunk = () => {
                     if (offset >= pdfBuffer.length) {
