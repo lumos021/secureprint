@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useFileData, Shop } from '../context/FileContext';
 import { FaSearch, FaMapMarkerAlt } from 'react-icons/fa';
+import LocationAccessMessage from './LocationAccessMessage';
+
 
 const ShopSelector: React.FC = () => {
   const { selectedShop, setSelectedShop, shopStatus, shops } = useFileData();
@@ -23,6 +25,7 @@ const ShopSelector: React.FC = () => {
   return (
     <div className="mb-8">
       <h2 className="text-2xl font-bold mb-4 text-indigo-600">Select a Shop</h2>
+      <LocationAccessMessage />
       {shops.length > 1 && (
         <div className="relative mb-4">
           <input

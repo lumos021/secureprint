@@ -648,6 +648,9 @@ video {
 .flex {
   display: flex;
 }
+.grid {
+  display: grid;
+}
 .hidden {
   display: none;
 }
@@ -678,6 +681,9 @@ video {
 .flex-grow {
   flex-grow: 1;
 }
+.grid-cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .flex-col {
   flex-direction: column;
 }
@@ -689,6 +695,9 @@ video {
 }
 .justify-between {
   justify-content: space-between;
+}
+.gap-4 {
+  gap: 1rem;
 }
 .space-y-2 > :not([hidden]) ~ :not([hidden]) {
   --tw-space-y-reverse: 0;
@@ -816,6 +825,10 @@ video {
   font-size: 2.25rem;
   line-height: 2.5rem;
 }
+.text-lg {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+}
 .text-sm {
   font-size: 0.875rem;
   line-height: 1.25rem;
@@ -884,11 +897,6 @@ video {
 .text-white {
   --tw-text-opacity: 1;
   color: rgb(255 255 255 / var(--tw-text-opacity));
-}
-.shadow {
-  --tw-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  --tw-shadow-colored: 0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color);
-  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
 .shadow-2xl {
   --tw-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);

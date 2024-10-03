@@ -29,7 +29,7 @@ userSchema.pre('save', async function(next) {
     // Generate QR code for shop
     const QRCode = require('qrcode');
     try {
-      this.shopDetails.qrCode = await QRCode.toDataURL(`${url}/shop/${this.userId}`);
+      this.shopDetails.qrCode = await QRCode.toDataURL(`${url}/?shopId=${this.userId}`);
     } catch (error) {
       console.error('Error generating QR code:', error);
     }

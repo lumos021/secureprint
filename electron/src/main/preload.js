@@ -12,7 +12,10 @@ const validChannels = [
   'token-refreshed',
   'logout',
   'login',
-  'check-auth-state'
+  'check-auth-state',
+  'get-daily-stats',
+  'printer-status'
+
 ];
 
 contextBridge.exposeInMainWorld('electron', {
@@ -37,7 +40,9 @@ contextBridge.exposeInMainWorld('electron', {
       'refresh-token',
       'logout',
       'login',
-      'check-auth-state'
+      'check-auth-state',
+      'get-daily-stats',
+      'printer-status'
     ];
     if (validInvokeChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, data);

@@ -8,6 +8,9 @@ const sessionManager = require('../utils/sessionManager');
 const WorkerPool = require('../utils/workerPool');
 const { sanitizeFilename, validateFilename, isValidFileType, validatePrintSettings, getResolvedFilePath } = require('../utils/fileUtils.js');
 const { sendPDFToElectronApp } = require('../services/electronService.js');
+const PrintJob = require('../models/printJobModel');
+const crypto = require('crypto');
+
 
 
 const workerPool = new WorkerPool(path.join(__dirname, '..', 'workers', 'fileProcessingWorker.js'));
@@ -18,77 +21,77 @@ const defaultPrintSettings = {
 };
 
 
-  const uploadFiles = async (req, res) => {
+const uploadFiles = async (req, res) => {
     const startTime = Date.now();
     logger.info('File upload request received', { requestId: req.requestId });
-  
-    try {
-      if (!req.files || req.files.length === 0) {
-        return res.status(400).json({ message: 'No files uploaded' });
-      }
-  
-      const uploadDir = path.join(__dirname, '..', 'uploads');
-      await ensureDirectoryExists(uploadDir);
-  
-      const invalidFiles = req.files.filter((file) => !isValidFileType(file.mimetype));
-      if (invalidFiles.length > 0) {
-        return res.status(400).json({ message: 'Invalid file type uploaded' });
-      }
-  
-      const sessionId = req.headers['x-session-id'] || sessionManager.createSession();
-      sessionManager.updateLastActivity(sessionId);
-  
-      const fileData = req.files.map((file) => ({
-        filename: sanitizeFilename(file.originalname),
-        originalname: file.originalname,
-        path: path.join(uploadDir, sanitizeFilename(file.originalname)),
-        size: file.size,
-        mimetype: file.mimetype,
-        uploadDate: new Date(),
-        processedFilename: null,
-      }));
-  
-      await Promise.all(
-        req.files.map(async (file, index) => {
-          await fs.rename(file.path, fileData[index].path);
-          const stats = await fs.stat(fileData[index].path);
-          const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
-          logger.info('File saved', {
-            filename: file.originalname,
-            size: `${fileSizeMB} MB`,
-            requestId: req.requestId,
-          });
-          sessionManager.addFileToSession(sessionId, fileData[index]);
-        })
-      );
-  
-      const savedFiles = await File.insertMany(fileData);
-      const duration = Date.now() - startTime;
-      logger.info('Files uploaded successfully', {
-        requestId: req.requestId,
-        fileCount: savedFiles.length,
-        duration: `${duration}ms`,
-        sessionId,
-      });
-  
-      res.status(200).json({ message: 'Files uploaded successfully', files: savedFiles, sessionId });
-    } catch (error) {
-      logger.error('Error uploading files', {
-        error: error.message,
-        stack: error.stack,
-        requestId: req.requestId,
-      });
-      res.status(500).json({ message: 'Error uploading files. Please try again later.' });
-    }
-  };
 
-  const ensureDirectoryExists = async (directory) => {
     try {
-      await fs.access(directory);
-    } catch (err) {
-      await fs.mkdir(directory, { recursive: true });
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ message: 'No files uploaded' });
+        }
+
+        const uploadDir = path.join(__dirname, '..', 'uploads');
+        await ensureDirectoryExists(uploadDir);
+
+        const invalidFiles = req.files.filter((file) => !isValidFileType(file.mimetype));
+        if (invalidFiles.length > 0) {
+            return res.status(400).json({ message: 'Invalid file type uploaded' });
+        }
+
+        const sessionId = req.headers['x-session-id'] || sessionManager.createSession();
+        sessionManager.updateLastActivity(sessionId);
+
+        const fileData = req.files.map((file) => ({
+            filename: sanitizeFilename(file.originalname),
+            originalname: file.originalname,
+            path: path.join(uploadDir, sanitizeFilename(file.originalname)),
+            size: file.size,
+            mimetype: file.mimetype,
+            uploadDate: new Date(),
+            processedFilename: null,
+        }));
+
+        await Promise.all(
+            req.files.map(async (file, index) => {
+                await fs.rename(file.path, fileData[index].path);
+                const stats = await fs.stat(fileData[index].path);
+                const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+                logger.info('File saved', {
+                    filename: file.originalname,
+                    size: `${fileSizeMB} MB`,
+                    requestId: req.requestId,
+                });
+                sessionManager.addFileToSession(sessionId, fileData[index]);
+            })
+        );
+
+        const savedFiles = await File.insertMany(fileData);
+        const duration = Date.now() - startTime;
+        logger.info('Files uploaded successfully', {
+            requestId: req.requestId,
+            fileCount: savedFiles.length,
+            duration: `${duration}ms`,
+            sessionId,
+        });
+
+        res.status(200).json({ message: 'Files uploaded successfully', files: savedFiles, sessionId });
+    } catch (error) {
+        logger.error('Error uploading files', {
+            error: error.message,
+            stack: error.stack,
+            requestId: req.requestId,
+        });
+        res.status(500).json({ message: 'Error uploading files. Please try again later.' });
     }
-  };
+};
+
+const ensureDirectoryExists = async (directory) => {
+    try {
+        await fs.access(directory);
+    } catch (err) {
+        await fs.mkdir(directory, { recursive: true });
+    }
+};
 
 
 const downloadFile = async (req, res) => {
@@ -274,6 +277,7 @@ const finalizeFiles = async (req, res, wss) => {
     const { printSettings, clientId } = req.body;
     const sessionId = req.headers['x-session-id'];
     sessionManager.updateLastActivity(sessionId);
+    const jobId = `job-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 
     logger.info('Finalize request received', {
         requestId: req.requestId,
@@ -335,8 +339,25 @@ const finalizeFiles = async (req, res, wss) => {
         // Set the merged filename in the session
         sessionManager.setMergedFilename(sessionId, finalFilename);
 
-        const electronResponse = await sendPDFToElectronApp(finalFilePath, clientId, printSettings);
-
+        const electronResponse = await sendPDFToElectronApp(finalFilePath, clientId, printSettings,jobId);
+        try {
+            const printJob = new PrintJob({
+                jobId,
+                sessionId,
+                userId: clientId, 
+                fileId: finalFilename,
+                pageCount: mergeResult.pageCount,
+                colorMode: printSettings.color === 'color' ? 'color' : 'b&w',
+                orientation: printSettings.orientation,
+                status: 'pending'
+            });
+        
+            const savedPrintJob = await printJob.save();
+            logger.info('Print job saved successfully', { jobId: savedPrintJob.jobId });
+        } catch (saveError) {
+            logger.error('Error saving print job', { error: saveError.message, stack: saveError.stack });
+            throw saveError; // Ensure error is propagated
+        }
         // After successful sending to Electron app, perform cleanup
         await sessionManager.cleanupSession(session);
         sessionManager.clearSession(sessionId);
@@ -456,7 +477,7 @@ const cleanupInactiveSessions = async () => {
                 for (const file of session.files) {
                     const filePath = getResolvedFilePath(file.filename);
                     await fs.unlink(filePath).catch(err => logger.warn(`Failed to delete file: ${filePath}`, { error: err.message }));
-                    
+
                     if (file.processedFilename) {
                         const processedPath = getResolvedFilePath(file.processedFilename);
                         await fs.unlink(processedPath).catch(err => logger.warn(`Failed to delete processed file: ${processedPath}`, { error: err.message }));
@@ -470,7 +491,7 @@ const cleanupInactiveSessions = async () => {
                 }
 
                 // Remove all file records from the database
-                await File.deleteMany({ 
+                await File.deleteMany({
                     $or: [
                         { filename: { $in: session.files.map(f => f.filename) } },
                         { processedFilename: { $in: session.files.map(f => f.processedFilename).filter(Boolean) } }
@@ -487,63 +508,6 @@ const cleanupInactiveSessions = async () => {
         }
     }
 };
-
-
-// const cleanupFiles = async (req, res) => {
-//     const startTime = Date.now();
-//     const { filesData, finalFilename } = req.body;
-//     const sessionId = req.headers['x-session-id'];
-
-//     logger.info('Cleanup request received', {
-//         requestId: req.requestId,
-//         filesCount: filesData.length,
-//         finalFilename,
-//         sessionId
-//     });
-
-//     try {
-//         const session = sessionManager.getSession(sessionId);
-//         if (!session) {
-//             logger.warn('Session not found', {
-//                 requestId: req.requestId,
-//                 sessionId
-//             });
-//             return res.status(404).json({ message: 'Session not found' });
-//         }
-
-//         const filesToDelete = filesData.map(file => getResolvedFilePath(file.filename));
-//         const processedFiles = session.files
-//             .filter(file => file.processedFilename)
-//             .map(file => getResolvedFilePath(file.processedFilename));
-
-//         filesToDelete.push(...processedFiles, getResolvedFilePath(finalFilename));
-
-//         await Promise.all(filesToDelete.map(fs.unlink));
-//         await File.deleteMany({ filename: { $in: filesData.map(file => sanitizeFilename(file.filename)) } });
-
-//         sessionManager.clearSession(sessionId);
-
-//         const duration = Date.now() - startTime;
-//         logger.info('Files cleaned up successfully', {
-//             requestId: req.requestId,
-//             filesCount: filesToDelete.length,
-//             duration: `${duration}ms`,
-//             sessionId
-//         });
-
-//         res.status(200).json({ message: 'Files cleaned up successfully' });
-//     } catch (error) {
-//         logger.error('Error cleaning up files', {
-//             error: error.message,
-//             stack: error.stack,
-//             requestId: req.requestId,
-//             filesData,
-//             finalFilename,
-//             sessionId
-//         });
-//         res.status(500).json({ message: 'Error cleaning up files' });
-//     }
-// };
 
 const healthCheck = (req, res) => {
     const health = {

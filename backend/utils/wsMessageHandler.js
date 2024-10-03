@@ -1,7 +1,7 @@
 // utils/wsMessageHandler.js
 const logger = require('./logger');
 const clientManager = require('../utils/clientManager.js');
-
+const PrintJob = require('../models/printJobModel');
 
 module.exports = async (ws, message) => {
     try {
@@ -33,6 +33,18 @@ module.exports = async (ws, message) => {
                     status: parsedMessage.status,
                     timestamp: new Date().toISOString()
                 });
+                break;
+
+            case 'print_job_update':
+                try {
+                    const { jobId, status } = parsedMessage.data;
+                    await PrintJob.findOneAndUpdate({ jobId: jobId }, { status: status });
+                    logger.info(`Updated print job ${jobId} status to ${status}`, { clientId: ws.userId });
+                    // ws.send(JSON.stringify({ type: 'print_job_update_response', success: true, jobId, status }));
+                } catch (error) {
+                    logger.error(`Error updating print job status: ${error}`, { clientId: ws.userId });
+                    // ws.send(JSON.stringify({ type: 'print_job_update_response', success: false, error: error.message }));
+                }
                 break;
 
             case 'initial_state':

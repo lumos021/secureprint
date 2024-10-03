@@ -5,6 +5,8 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const User = require('../models/userModel');
 const logger = require('../utils/logger');
+const statsController = require('../controllers/statsController');
+const authMiddleware = require('../middleware/authMiddleware');
 
 router.post('/register', async (req, res) => {
   try {
@@ -74,6 +76,7 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
+router.get('/stats/daily', authMiddleware, statsController.getDailyStats);
 
 
 module.exports = router;

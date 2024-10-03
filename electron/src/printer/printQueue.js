@@ -3,9 +3,12 @@ const path = require('path');
 const printerManager = require('./printerManager');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
+const EventEmitter = require('events');
 
-class PrintQueue {
+
+class PrintQueue extends EventEmitter {
   constructor(mainWindow) {
+    super(); 
     this.mainWindow = mainWindow;
     this.queue = [];
     this.isPrinting = false;
@@ -13,9 +16,15 @@ class PrintQueue {
   }
 
   async addJob(job) {
+    if (!job.printerName) {
+      const printerStatus = await this.getPrinterStatus();
+      job.printerName = printerStatus.defaultPrinter || 'Unknown Printer';
+    }
     this.queue.push(job);
     this.sortPrintQueue();
     logger.info(`Added job ${job.jobId} to the print queue`, this.mainWindow);
+    logger.info(`Adding job with printer: ${job.printerName}`);
+    this.sendQueueUpdate();
     if (!this.isPrinting) {
       await this.processPrintQueue();
     }
@@ -27,6 +36,7 @@ class PrintQueue {
       const [canceledJob] = this.queue.splice(index, 1);
       await this.cleanupJobFiles(canceledJob);
       logger.info(`Print job ${jobId} canceled`, this.mainWindow);
+
     } else {
       logger.warn(`Print job ${jobId} not found in queue`, this.mainWindow);
     }
@@ -55,17 +65,22 @@ class PrintQueue {
     }
   }
 
-  async processPrintJob(job) {
+    async processPrintJob(job) {
     try {
+      this.emit('jobStarted', job.jobId);
       const pdfPath = await this.savePdfToFile(job);
       const printResult = await printerManager.startPrintJob(pdfPath, job.printerName, job.settings);
-      const status = printResult ? 'success' : 'failed';
+      const status = printResult ? 'completed' : 'failed';
+      this.emit('jobFinished', job.jobId, status);
       logger.info(`Print job ${job.jobId} ${status}`, this.mainWindow);
       await this.cleanupJobFiles(job);
+      this.sendQueueUpdate();
       return { jobId: job.jobId, status };
     } catch (error) {
+      this.emit('jobFinished', job.jobId, 'failed');
       logger.error(`Error processing print job ${job.jobId}: ${error.message}`, this.mainWindow);
-      return { jobId: job.jobId, status: 'error', message: error.message };
+      this.sendQueueUpdate();
+      return { jobId: job.jobId, status: 'failed', message: error.message };
     }
   }
 
@@ -91,6 +106,20 @@ class PrintQueue {
       currentlyPrinting: this.isPrinting
     };
   }
+  sendQueueUpdate() {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      const queueData = this.queue.map(job => ({
+        jobId: job.jobId,
+        printerName: job.printerName || 'Unknown Printer',
+        status: job.status || 'pending'
+      }));
+      this.mainWindow.webContents.send('queue-update', queueData);
+      // logger.info('Queue update sent to renderer', this.mainWindow);
+    } else {
+      logger.warn('Cannot send queue update: mainWindow is not available', this.mainWindow);
+    }
+  }
+  
 }
 
-module.exports = new PrintQueue();
+module.exports = PrintQueue;

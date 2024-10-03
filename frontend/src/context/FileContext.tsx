@@ -35,6 +35,7 @@ interface FileContextProps {
   sessionId: string | null;
   setSessionId: (id: string | null) => void;
   shops: Shop[];
+  showLocationMessage:boolean
 }
 
 const FileContext = createContext<FileContextProps | undefined>(undefined);
@@ -55,6 +56,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [shops, setShops] = useState<Shop[]>([]);
   const shopHandledRef = useRef(false);
   const router = useRouter();
+  const [showLocationMessage, setShowLocationMessage] = useState(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -124,16 +126,14 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 lat: position.coords.latitude,
                 lng: position.coords.longitude,
               };
+              setShowLocationMessage(false);
             } catch (geoError) {
               console.error('Geolocation error:', geoError);
               if (geoError.code === 1) {
-                toast.error('Location access deniedby the browser. Please allow access in the browser settings.');
-              } else if (geoError.code === 2) {
-                toast.error('Location unavailable. Using default location.');
+                setShowLocationMessage(true);
               } else {
                 toast.error('Failed to fetch location. Using default location.');
               }
-              // Use a default location or IP-based geolocation here
               userLocation = await fetchDefaultLocation();
             }
           } else {
@@ -209,7 +209,8 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       sessionId, 
       setSessionId, 
       shopStatus,
-      shops
+      shops,
+      showLocationMessage,
     }}>
       {children}
     </FileContext.Provider>

@@ -30,6 +30,36 @@ const elements = {
   addressInput: document.getElementById('address')
 };
 
+const updatePrintStats = async () => {
+  try {
+    const stats = await window.electron.invoke('get-daily-stats');
+    document.getElementById('totalPages').textContent = stats.totalPages || 0;
+    document.getElementById('colorPages').textContent = stats.colorPages || 0;
+    document.getElementById('bwPages').textContent = stats.bwPages || 0;
+  } catch (error) {
+    console.error('Failed to fetch print statistics:', error);
+  }
+};
+
+const updatePrinterStatus = async () => {
+  try {
+    const { statusEl } = elements;
+
+    const printerStatus = await window.electron.invoke('printer-status');  // Ensure this IPC method exists
+
+    if (printerStatus) {
+      const { status } = printerStatus;
+
+      statusEl.innerHTML = `<i class="fas fa-info-circle mr-2"></i>Printer Status: ${status}`;
+    } else {
+      statusEl.textContent = 'Printer Status: Unknown';
+    }
+  } catch (error) {
+    console.error('Failed to fetch printer status:', error);
+  }
+};
+
+
 // Helper functions
 const setDarkMode = (isDark) => {
   document.documentElement.classList.toggle('dark', isDark);
@@ -154,12 +184,22 @@ const handleSetPrinter = async () => {
 };
 
 const handleQueueUpdate = (queue) => {
-  elements.queueList.innerHTML = queue.map(job => 
-      `<li class="mb-1 p-2 bg-white dark:bg-gray-600 rounded shadow">
-          Job ${job.jobId} - ${job.printerName} - ${job.status}
-      </li>`
-  ).join('');
+  // console.log('Queue update received:', queue);  // Debugging log
+
+  // Ensure the queue is an array and not undefined or null
+  if (Array.isArray(queue) && queue.length > 0) {
+    elements.queueList.innerHTML = queue.map(job => 
+        `<li class="mb-1 p-2 bg-white dark:bg-gray-600 ">
+            Job ${job.jobId} - ${job.printerName || 'Unknown Printer'} - ${job.status || 'unknown'}
+        </li>`
+    ).join('');
+  } else {
+    elements.queueList.innerHTML = '<li class="mb-1 p-2 bg-white dark:bg-gray-600 ">No jobs in the queue</li>';
+  }
+
+  updatePrintStats();
 };
+
 
 const handleLogMessage = (message) => {
   const logEntry = document.createElement('div');
@@ -255,6 +295,9 @@ const initializeApp = async () => {
 
   // Refresh printers on initial load
   handleRefreshPrinters();
-};
+  updatePrinterStatus();
+  updatePrintStats();
 
+};
+setInterval(updatePrintStats, 60000); 
 initializeApp();

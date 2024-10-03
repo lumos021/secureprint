@@ -3,6 +3,7 @@ const config = require('../utils/config');
 const logger = require('../utils/logger');
 const authManager = require('../auth/authManager');
 const printQueue = require('../printer/printQueue');
+const printerManager = require('../printer/printerManager')
 
 class WSClient {
     constructor() {
@@ -11,10 +12,15 @@ class WSClient {
         this.messageQueue = [];
         this.isConnecting = false;
         this.mainWindow = null;  // Placeholder for mainWindow
+        this.printQueue = null;
+        this.printJobs = new Map();
+
     }
 
     setMainWindow(mainWindow) {
         this.mainWindow = mainWindow;
+        this.printQueue = new printQueue(mainWindow);
+        this.setupPrintQueueListeners();  
     }
 
     async connect() {
@@ -68,23 +74,23 @@ class WSClient {
     onMessage(data) {
         try {
             console.log('Raw WebSocket message received:', data);
-        
-        if (data === undefined) {
-            logger.error('Received undefined WebSocket message');
-            return;
-        }
 
-        let message;
-        if (typeof data === 'string') {
-            message = JSON.parse(data);
-        } else if (data instanceof Buffer) {
-            message = JSON.parse(data.toString());
-        } else {
-            logger.error(`Received WebSocket message of unexpected type: ${typeof data}`);
-            return;
-        }
+            if (data === undefined) {
+                logger.error('Received undefined WebSocket message');
+                return;
+            }
 
-        console.log('Parsed message:', message);
+            let message;
+            if (typeof data === 'string') {
+                message = JSON.parse(data);
+            } else if (data instanceof Buffer) {
+                message = JSON.parse(data.toString());
+            } else {
+                logger.error(`Received WebSocket message of unexpected type: ${typeof data}`);
+                return;
+            }
+
+            console.log('Parsed message:', message);
             switch (message.type) {
                 case 'auth':
                     this.handleAuthMessage(message);
@@ -130,18 +136,18 @@ class WSClient {
     }
 
     handlePrintRequest(message) {
-        if (!this.printJobs) {
-            this.printJobs = new Map();
+        if (!this.printQueue) {
+            logger.error('PrintQueue not initialized', this.mainWindow);
+            return;
         }
-    
+
         const jobId = message.jobId;
-    
+
         if (message.done) {
-            // Final message received, process the complete PDF
             if (this.printJobs.has(jobId)) {
                 const job = this.printJobs.get(jobId);
                 const pdfData = Buffer.concat(job.chunks);
-                printQueue.addJob({
+                this.printQueue.addJob({
                     jobId: jobId,
                     pdfData: pdfData,
                     printerName: job.printSettings.printerName,
@@ -149,12 +155,13 @@ class WSClient {
                     priority: job.printSettings.priority || 'normal'
                 });
                 this.printJobs.delete(jobId);
+                this.sendPrintJobUpdate(jobId, 'pending');
             } else {
                 logger.error(`Received done message for unknown job ID: ${jobId}`);
             }
             return;
         }
-    
+
         // Handle chunked data
         if (!this.printJobs.has(jobId)) {
             this.printJobs.set(jobId, {
@@ -164,27 +171,52 @@ class WSClient {
                 printSettings: message.printSettings
             });
         }
-    
+
         const job = this.printJobs.get(jobId);
         const chunk = Buffer.from(message.chunk, 'base64');
         job.chunks.push(chunk);
         job.received += chunk.length;
-    
+
         if (job.received >= job.total) {
             logger.info(`Received all chunks for job ${jobId}`);
         }
     }
+    setupPrintQueueListeners() {
+        if (this.printQueue) {
+            this.printQueue.on('jobStarted', (jobId) => {
+                this.sendPrintJobUpdate(jobId, 'printing');
+            });
+    
+            this.printQueue.on('jobFinished', (jobId, status) => {
+                this.sendPrintJobUpdate(jobId, status);
+            });
+        } else {
+            logger.warn('PrintQueue not initialized when setting up listeners');
+        }
+    }
+
+    sendPrintJobUpdate(jobId, status) {
+        const updateMessage = {
+            type: 'print_job_update',
+            data: {
+                jobId: jobId,
+                status: status
+            }
+        };
+        this.sendMessage(updateMessage);
+        logger.info(`Print job update sent: Job ${jobId} status changed to ${status}`);
+    }
 
     sendPrinterStatus() {
         const status = {
-            printers: printQueue.getPrinterStatus(),
-            queueStatus: printQueue.getQueueStatus()
+            printers: this.printQueue.getPrinterStatus(),
+            queueStatus: this.printQueue.getQueueStatus()
         };
         this.sendMessage({ type: 'printer-status', data: status });
     }
 
     cancelPrintJob(jobId) {
-        printQueue.cancelJob(jobId);
+        this.printQueue.cancelJob(jobId);
     }
 
     onClose(code, reason) {
@@ -239,26 +271,33 @@ class WSClient {
         }
     }
 
- async sendInitialState() {
-    const clientId = await authManager.getUserId();
-    const status = {
-        type: 'initial_state',
-        data: {
-            clientId: clientId,
-            printerStatus: printQueue.getPrinterStatus(),
-            queueStatus: printQueue.getQueueStatus()
-        }
-    };
-    this.sendMessage(status);
-}
+    async sendInitialState() {
+        const clientId = await authManager.getUserId();
+
+        // Fetch the correct printer status from the printer manager
+        const printerStatus = await printerManager.getPrinterStatus();
+
+        const status = {
+            type: 'initial_state',
+            data: {
+                clientId: clientId,
+                printerStatus: printerStatus,
+                queueStatus: this.printQueue.getQueueStatus()
+            }
+        };
+
+        logger.info(`Initial state to be sent: ${JSON.stringify(status)}`);
+        this.sendMessage(status);
+    }
+
 
 
     sendStatus() {
         const status = {
             type: 'status_update',
             data: {
-                printerStatus: printQueue.getPrinterStatus(),
-                queueStatus: printQueue.getQueueStatus()
+                printerStatus: this.printQueue.getPrinterStatus(),
+                queueStatus: this.printQueue.getQueueStatus()
             }
         };
         this.sendMessage(status);
@@ -270,7 +309,7 @@ class WSClient {
         clearTimeout(this.reconnectTimeout); // Clear any reconnect attempts
         this.close();
     }
-    
+
 }
 
 module.exports = new WSClient();

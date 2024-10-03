@@ -59,43 +59,46 @@ const rotatePDFToLandscape = async (inputPath, outputPath) => {
 };
 
 const mergeProcessedPDFs = async (filesData, printSettings) => {
-    const mergedPdf = await PDFDocument.create();
-  
-    for (const fileData of filesData) {
+  const mergedPdf = await PDFDocument.create();
+  let totalPageCount = 0;
+
+  for (const fileData of filesData) {
       const pdfPath = path.join(__dirname, '../uploads', fileData.filename);
       try {
-        const pdfBytes = await fs.readFile(pdfPath);
-        const pdfDoc = await PDFDocument.load(pdfBytes);
-        
-        // Check if the PDF is valid
-        if (!pdfDoc.getPages().length) {
-          throw new Error('PDF has no pages');
-        }
-  
-        const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
-        copiedPages.forEach(page => {
-          mergedPdf.addPage(page);
-        });
+          const pdfBytes = await fs.readFile(pdfPath);
+          const pdfDoc = await PDFDocument.load(pdfBytes);
+
+          // Check if the PDF is valid
+          if (!pdfDoc.getPages().length) {
+              throw new Error('PDF has no pages');
+          }
+
+          const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+          copiedPages.forEach(page => {
+              mergedPdf.addPage(page);
+          });
+
+          // Add the page count of this PDF to the total
+          totalPageCount += pdfDoc.getPageCount();
       } catch (error) {
-        logger.error('Error loading or merging PDF', {
-          filename: fileData.filename,
-          error: error.message,
-          stack: error.stack,
-        });
-        throw new Error(`Error processing file ${fileData.filename}: ${error.message}`);
+          logger.error('Error loading or merging PDF', {
+              filename: fileData.filename,
+              error: error.message,
+              stack: error.stack,
+          });
+          throw new Error(`Error processing file ${fileData.filename}: ${error.message}`);
       }
-    }
-  
-    const mergedPdfBytes = await mergedPdf.save();
-  
-    const finalFilename = `merged-${Date.now()}.pdf`;
-    const finalFilePath = path.join(__dirname, '../uploads', finalFilename);
-    
-    await fs.writeFile(finalFilePath, mergedPdfBytes);
-  
-    return { finalFilename, finalFilePath };
-  };
-  
+  }
+
+  const mergedPdfBytes = await mergedPdf.save();
+
+  const finalFilename = `merged-${Date.now()}.pdf`;
+  const finalFilePath = path.join(__dirname, '../uploads', finalFilename);
+
+  await fs.writeFile(finalFilePath, mergedPdfBytes);
+
+  return { finalFilename, finalFilePath, pageCount: totalPageCount };
+};
 
 module.exports = {
     convertToBlackAndWhite,

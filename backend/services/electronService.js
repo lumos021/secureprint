@@ -8,7 +8,7 @@ const clientManager = require('../utils/clientManager');
 const CHUNK_SIZE = 1024 * 1024;
 const SEND_TIMEOUT = 30000;
 
-const sendPDFToElectronApp = async (pdfFilePath, userId, printSettings) => {
+const sendPDFToElectronApp = async (pdfFilePath, userId, printSettings,jobId) => {
     const startTime = Date.now();
     logger.info('Attempting to send PDF to Electron', { userId, pdfFilePath });
 
@@ -62,6 +62,8 @@ const sendPDFToElectronApp = async (pdfFilePath, userId, printSettings) => {
         const sendChunksToClient = async (clientWs) => {
             return new Promise((resolve, reject) => {
                 let offset = 0;
+                // const jobId = Date.now().toString();
+                console.log(jobId)
 
                 const sendNextChunk = () => {
                     if (offset >= pdfBuffer.length) {

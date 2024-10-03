@@ -80,14 +80,29 @@ class PrinterManager {
   async getPrinterStatus() {
     try {
       const printers = await this.getPrintersList();
+      if (!printers || printers.length === 0) {
+        logger.warn('No printers found', this.mainWindow);
+        return { status: 'No printers found', printers: [], defaultPrinter: null };
+      }
+  
       const defaultPrinterName = await this.getDefaultPrinterName();
-      const status = defaultPrinterName ? `Default printer is ${defaultPrinterName}` : 'No default printer found';
-      return { status, printers, defaultPrinter: defaultPrinterName };
+      if (!defaultPrinterName) {
+        logger.warn('No default printer set', this.mainWindow);
+      }
+  
+      const status = defaultPrinterName 
+        ? `Default printer is ${defaultPrinterName}` 
+        : 'No default printer found';
+  
+      logger.info(`Printer status retrieved: ${status}`, this.mainWindow);
+  
+      return { status, printers, defaultPrinter: defaultPrinterName || 'None' };
     } catch (error) {
       logger.error(`Error getting printer status: ${error.message}`, this.mainWindow);
-      throw error;
+      return { status: 'Error retrieving printer status', printers: [], defaultPrinter: null };
     }
   }
+  
 }
 
 module.exports = new PrinterManager();

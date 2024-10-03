@@ -4,6 +4,10 @@ const printerManager = require('../printer/printerManager');
 const printQueue = require('../printer/printQueue');
 const wsClient = require('../websocket/wsClient');
 const logger = require('../utils/logger');
+const axios = require('axios');
+const config = require('../utils/config');
+const apiUrl = config.apiUrl;
+
 
 function setupIPC(mainWindow) {
   logger.info('Setting up IPC handlers', mainWindow);
@@ -45,7 +49,6 @@ function setupIPC(mainWindow) {
 
   ipcMain.handle('request-printer-list', async () => {
     try {
-      logger.info('Request printer list handler called', mainWindow);
       return await printerManager.getPrintersList();
     } catch (error) {
       logger.error(`Error getting printer list: ${error.message}`, mainWindow);
@@ -88,13 +91,13 @@ function setupIPC(mainWindow) {
 
   ipcMain.handle('logout', async () => {
     try {
-        await authManager.logout();
-        return { success: true };
+      await authManager.logout();
+      return { success: true };
     } catch (error) {
-        console.error('Logout failed:', error);
-        return { success: false, error: error.message };
+      console.error('Logout failed:', error);
+      return { success: false, error: error.message };
     }
-});
+  });
 
   ipcMain.handle('check-auth-state', async () => {
     try {
@@ -105,6 +108,38 @@ function setupIPC(mainWindow) {
       return false;
     }
   });
+
+  ipcMain.on('queue-update', (event, queue) => {
+    event.sender.send('queue-update', queue);
+});
+
+  ipcMain.handle('get-daily-stats', async () => {
+    try {
+      const authState = await authManager.checkAuthState();
+      if (!authState.isAuthenticated) {
+        throw new Error('User not authenticated');
+      }
+
+      const response = await axios.get(`${apiUrl}/api/auth/stats/daily`, {
+        headers: { Authorization: `Bearer ${authState.token}` }
+      });
+
+      return response.data;
+    } catch (error) {
+      logger.error('Error fetching daily stats:', error.message);
+      throw error;
+    }
+  });
+  ipcMain.handle('printer-status', async () => {
+    try {
+      const status = await printerManager.getPrinterStatus();
+      return status;
+    } catch (error) {
+      logger.error(`Error fetching printer status: ${error.message}`, mainWindow);
+      throw error;
+    }
+  });
+
 }
 
 module.exports = { setupIPC };

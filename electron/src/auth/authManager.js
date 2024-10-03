@@ -18,8 +18,6 @@ class AuthManager {
         await this.initStore();
         const token = this.store.get('authToken');
         const userId = this.store.get('userId');
-        console.log('Stored token:', token ? 'exists' : 'not found');
-        console.log('Stored userId:', userId);
         if (!token || !userId) {
             return { isAuthenticated: false };
         }
@@ -54,10 +52,7 @@ class AuthManager {
             this.store.delete('authToken');
             this.store.delete('userId');
             
-            // if (token) this.store.set('authToken', token);
-            // if (userId) this.store.set('userId', userId);
             if (token) {
-                console.log('Stored token:', token);
                 this.store.set('authToken', token);
             }
             
@@ -122,7 +117,6 @@ class AuthManager {
     async getUserId() {
         await this.initStore();
         const userId = this.store.get('userId');
-        console.log('Retrieved userId:', userId); // Add this log to verify
         return userId;
     }
 }

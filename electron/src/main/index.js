@@ -7,10 +7,12 @@ const authManager = require('../auth/authManager');
 const wsClient = require('../websocket/wsClient');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
+const PrintQueue = require('../printer/printQueue');
 // const PrinterManager = require('../printer/printerManager');
 
 let mainWindow;
 let powerSaveId;
+let printQueue;
 // let printerManager;
 
 const createWindow = async () => {
@@ -28,9 +30,10 @@ const createWindow = async () => {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+  
   wsClient.setMainWindow(mainWindow); 
-
-  setupIPC(mainWindow);
+  printQueue = new PrintQueue(mainWindow);
+  setupIPC(mainWindow, printQueue);  
   logger.info('IPC setup complete', mainWindow);
   
   await mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
@@ -39,7 +42,7 @@ const createWindow = async () => {
   createTray(mainWindow);
 
   // Initialize PrinterManager with mainWindow
-//   printerManager = new PrinterManager(mainWindow);
+  // printerManager = new PrinterManager(mainWindow);
 
   const authState = await authManager.checkAuthState();
   logger.info(`Auth state: ${JSON.stringify(authState)}`, mainWindow);
@@ -52,7 +55,6 @@ const createWindow = async () => {
     mainWindow.webContents.send('register-client');
   }
 };
-wsClient.setMainWindow(mainWindow);
 
 async function cleanupTempFiles() {
   // Implement cleanup logic here
@@ -96,4 +98,7 @@ powerMonitor.on('resume', async () => {
   }
 });
 
-module.exports = { mainWindow };
+module.exports = { 
+  getMainWindow: () => mainWindow,
+  getPrintQueue: () => printQueue
+};
