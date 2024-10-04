@@ -48,12 +48,13 @@ export const useFileData = () => {
   return context;
 };
 
-export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const FileProvider: React.FC<{ children: ReactNode; initialShops?: Shop[] }> = ({ children, initialShops = [] }) => {
+  const [shops, setShops] = useState<Shop[]>(initialShops);
   const [filesData, setFilesData] = useState<FileData[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [shopStatus, setShopStatus] = useState<{ [key: string]: boolean }>({});
-  const [shops, setShops] = useState<Shop[]>([]);
+  // const [shops, setShops] = useState<Shop[]>([]);
   const shopHandledRef = useRef(false);
   const router = useRouter();
   const [showLocationMessage, setShowLocationMessage] = useState(false);
@@ -105,7 +106,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           await fetchShopsBasedOnLocation();
         }
       } catch (error) {
-        toast.error('Failed to fetch shops');
+        console.log('Failed to fetch shops');
       }
     };
 
@@ -132,7 +133,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               if (geoError.code === 1) {
                 setShowLocationMessage(true);
               } else {
-                toast.error('Failed to fetch location. Using default location.');
+                console.log('Failed to fetch location. Using default location.');
               }
               userLocation = await fetchDefaultLocation();
             }
@@ -157,7 +158,6 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       } catch (error) {
         console.error('Error fetching shops:', error);
-        toast.error('Failed to fetch shops based on location');
       }
     };
     
@@ -187,7 +187,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const response = await axios.get(`${apiUrl}/api/shop-status`);
         setShopStatus(response.data);
       } catch (error) { 
-        toast.error('Failed to fetch shop status');
+        console.log('Failed to fetch shop status');
       }
     };
 

@@ -1,5 +1,6 @@
 // controllers/fileController.js
-const fs = require('fs').promises;
+const fs = require('fs'); 
+const fsp = require('fs').promises;
 const path = require('path');
 const File = require('../models/fileModel.js');
 const pdfParse = require('pdf-parse');
@@ -53,8 +54,8 @@ const uploadFiles = async (req, res) => {
 
         await Promise.all(
             req.files.map(async (file, index) => {
-                await fs.rename(file.path, fileData[index].path);
-                const stats = await fs.stat(fileData[index].path);
+                await fsp.rename(file.path, fileData[index].path);
+                const stats = await fsp.stat(fileData[index].path);
                 const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
                 logger.info('File saved', {
                     filename: file.originalname,
@@ -87,9 +88,9 @@ const uploadFiles = async (req, res) => {
 
 const ensureDirectoryExists = async (directory) => {
     try {
-        await fs.access(directory);
+        await fsp.access(directory);
     } catch (err) {
-        await fs.mkdir(directory, { recursive: true });
+        await fsp.mkdir(directory, { recursive: true });
     }
 };
 
@@ -105,7 +106,7 @@ const downloadFile = async (req, res) => {
     });
 
     try {
-        await fs.access(filePath, fs.constants.R_OK);
+        await fsp.access(filePath, fs.constants.R_OK);
     } catch (error) {
         const fileRecord = await File.findOne({
             $or: [
@@ -125,25 +126,32 @@ const downloadFile = async (req, res) => {
         }
     }
 
-    res.sendFile(filePath, (err) => {
-        if (err) {
-            logger.error('Error sending file', {
-                error: err.message,
-                stack: err.stack,
-                requestId: req.requestId,
-                filename
-            });
-            res.status(500).json({ message: 'Error downloading file. Please try again later.' });
-        } else {
-            const duration = Date.now() - startTime;
-            logger.info('File downloaded successfully', {
-                requestId: req.requestId,
-                filename,
-                duration: `${duration}ms`
-            });
-        }
+    const fileStream = fs.createReadStream(filePath);
+
+    // Handle stream errors
+    fileStream.on('error', (err) => {
+        logger.error('Error streaming file', {
+            error: err.message,
+            stack: err.stack,
+            requestId: req.requestId,
+            filename
+        });
+        res.status(500).json({ message: 'Error downloading file. Please try again later.' });
+        res.end();
+    });
+
+    fileStream.pipe(res);
+
+    fileStream.on('end', () => {
+        const duration = Date.now() - startTime;
+        logger.info('File streamed successfully', {
+            requestId: req.requestId,
+            filename,
+            duration: `${duration}ms`
+        });
     });
 };
+
 
 const getPdfInfo = async (req, res) => {
     const startTime = Date.now();
@@ -165,8 +173,8 @@ const getPdfInfo = async (req, res) => {
     const filePath = getResolvedFilePath(filename);
 
     try {
-        await fs.access(filePath);
-        const fileBuffer = await fs.readFile(filePath);
+        await fsp.access(filePath);
+        const fileBuffer = await fsp.readFile(filePath);
         const pdfData = await pdfParse(fileBuffer);
         const duration = Date.now() - startTime;
         logger.info('PDF info retrieved successfully', {
@@ -212,7 +220,7 @@ const processFile = async (req, res) => {
     const processedFilePath = getResolvedFilePath(processedFileName);
 
     try {
-        await fs.access(filePath);
+        await fsp.access(filePath);
         const fileExtension = path.extname(filename).toLowerCase();
 
         if (!['.pdf', '.jpg', '.jpeg', '.png'].includes(fileExtension)) {
@@ -439,7 +447,7 @@ const deleteFile = async (req, res) => {
             filesToDelete.push(getResolvedFilePath(fileRecord.processedFilename));
         }
 
-        await Promise.all(filesToDelete.map(fs.unlink));
+        await Promise.all(filesToDelete.map(fsp.unlink));
         await File.deleteOne({ filename: sanitizeFilename(filename) });
 
         sessionManager.removeFileFromSession(sessionId, sanitizeFilename(filename));
@@ -476,18 +484,18 @@ const cleanupInactiveSessions = async () => {
                 // Delete all files associated with the session
                 for (const file of session.files) {
                     const filePath = getResolvedFilePath(file.filename);
-                    await fs.unlink(filePath).catch(err => logger.warn(`Failed to delete file: ${filePath}`, { error: err.message }));
+                    await fsp.unlink(filePath).catch(err => logger.warn(`Failed to delete file: ${filePath}`, { error: err.message }));
 
                     if (file.processedFilename) {
                         const processedPath = getResolvedFilePath(file.processedFilename);
-                        await fs.unlink(processedPath).catch(err => logger.warn(`Failed to delete processed file: ${processedPath}`, { error: err.message }));
+                        await fsp.unlink(processedPath).catch(err => logger.warn(`Failed to delete processed file: ${processedPath}`, { error: err.message }));
                     }
                 }
 
                 // Delete the final merged file if it exists
                 if (session.mergedFilename) {
                     const mergedPath = getResolvedFilePath(session.mergedFilename);
-                    await fs.unlink(mergedPath).catch(err => logger.warn(`Failed to delete merged file: ${mergedPath}`, { error: err.message }));
+                    await fsp.unlink(mergedPath).catch(err => logger.warn(`Failed to delete merged file: ${mergedPath}`, { error: err.message }));
                 }
 
                 // Remove all file records from the database

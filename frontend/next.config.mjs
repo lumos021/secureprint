@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  compress: true,
   webpack: (config) => {
    config.resolve.alias.canvas = false;
        config.module.rules.push({

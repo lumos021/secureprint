@@ -3,13 +3,17 @@ import { useFileData, Shop } from '../context/FileContext';
 import { FaSearch, FaMapMarkerAlt } from 'react-icons/fa';
 import LocationAccessMessage from './LocationAccessMessage';
 
-
-const ShopSelector: React.FC = () => {
+interface ShopSelectorProps {
+  initialShops: Shop[];
+}
+const ShopSelector: React.FC<ShopSelectorProps> = ({ initialShops }) => {
   const { selectedShop, setSelectedShop, shopStatus, shops } = useFileData();
+
   const [searchQuery, setSearchQuery] = useState('');
+  const availableShops = initialShops.length > 0 ? initialShops : shops;
 
   useEffect(() => {
-    if (shops.length === 1) {
+    if (availableShops.length === 1) {
       setSelectedShop(shops[0]);
     }
   }, [shops, setSelectedShop]);
@@ -18,7 +22,7 @@ const ShopSelector: React.FC = () => {
     setSelectedShop(shop);
   };
 
-  if (shops.length === 0) {
+  if (availableShops.length === 0) {
     return <p className="text-gray-600">No shops available.</p>;
   }
 
@@ -26,7 +30,7 @@ const ShopSelector: React.FC = () => {
     <div className="mb-8">
       <h2 className="text-2xl font-bold mb-4 text-indigo-600">Select a Shop</h2>
       <LocationAccessMessage />
-      {shops.length > 1 && (
+      {availableShops.length > 1 && (
         <div className="relative mb-4">
           <input
             type="text"
@@ -39,7 +43,7 @@ const ShopSelector: React.FC = () => {
         </div>
       )}
       <ul className="mt-4 max-h-60 overflow-y-auto bg-white rounded-lg shadow-md">
-        {shops
+        {availableShops
           .filter(shop => shop.name.toLowerCase().includes(searchQuery.toLowerCase()))
           .map((shop) => (
             <li
