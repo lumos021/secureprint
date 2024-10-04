@@ -48,13 +48,12 @@ export const useFileData = () => {
   return context;
 };
 
-export const FileProvider: React.FC<{ children: ReactNode; initialShops?: Shop[] }> = ({ children, initialShops = [] }) => {
-  const [shops, setShops] = useState<Shop[]>(initialShops);
+export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [filesData, setFilesData] = useState<FileData[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [shopStatus, setShopStatus] = useState<{ [key: string]: boolean }>({});
-  // const [shops, setShops] = useState<Shop[]>([]);
+  const [shops, setShops] = useState<Shop[]>([]);
   const shopHandledRef = useRef(false);
   const router = useRouter();
   const [showLocationMessage, setShowLocationMessage] = useState(false);

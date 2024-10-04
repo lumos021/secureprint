@@ -15,6 +15,8 @@ interface PrintSettingsProps {
 }
 
 const PrintSettings: React.FC<PrintSettingsProps> = React.memo(({ printSettings, setPrintSettings, calculateTotalCost }) => {
+    PrintSettings.displayName = 'PrintSettings';
+
   const handlePrintSettingsChange = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = event.target;
     setPrintSettings(prevSettings => ({

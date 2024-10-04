@@ -15,7 +15,9 @@ interface FilePreviewProps {
 }
 
 const FilePreview: React.FC<FilePreviewProps> = React.memo(({ url, index, totalPages, handleRemoveFile }) => {
-  useEffect(() => {
+    FilePreview.displayName = 'FilePreview';
+  
+    useEffect(() => {
     const loadPdfjs = async () => {
       const { pdfjs } = await import('react-pdf');
       pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
