@@ -6,7 +6,7 @@ function validateFilename(filename) {
     if (typeof filename !== 'string' || filename.length === 0) {
         return false;
     }
-    
+
     const extension = path.extname(filename).toLowerCase();
     if (!config.allowedFileTypes.includes(extension)) {
         return false;
@@ -34,10 +34,38 @@ function isValidFileType(mimetype) {
 const validatePrintSettings = (settings) => {
     const validColors = ['b&w', 'color'];
     const validOrientations = ['portrait', 'landscape'];
-    return validColors.includes(settings.color) && validOrientations.includes(settings.orientation);
-  };
+    const validPagesPerSheet = [1, 2, 4, 9]; // Supported values for pages per sheet
+    console.log('Validating print settings:', settings);
 
-  function getResolvedFilePath(filename) {
+    if (!validColors.includes(settings.color)) {
+        return {
+            isValid: false,
+            message: 'Invalid color option. Valid options are "b&w" and "color".'
+        };
+    }
+    if (!validOrientations.includes(settings.orientation)) {
+        return {
+            isValid: false,
+            message: 'Invalid orientation. Valid options are "portrait" and "landscape".'
+        };
+    }
+    if (!validPagesPerSheet.includes(settings.pagesPerSheet || 1)) {
+        return {
+            isValid: false,
+            message: `Invalid pagesPerSheet value. Supported values are ${validPagesPerSheet.join(', ')}.`
+        };
+    }
+
+    return {
+        isValid: true,
+        message: 'Validation passed'
+    }; // All validations passed
+};
+
+
+
+
+function getResolvedFilePath(filename) {
     if (typeof filename !== 'string' || filename.length === 0) {
         throw new Error('Filename must be a non-empty string');
     }

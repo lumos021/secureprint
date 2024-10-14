@@ -70,3 +70,30 @@ p {
     }
   }
 }
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+  }
+}
+
+.fab {
+  animation: pulse 2s infinite;
+  transition: transform 0.2s ease-in-out;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); /* Enhanced shadow */
+}
+
+.fab:active {
+  transform: scale(0.95);
+}
+
+/* Tooltip visibility */
+.tooltip {
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}

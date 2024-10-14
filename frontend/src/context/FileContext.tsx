@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
-import { useRouter } from 'next/router';  // Import router here
+import React, { createContext, useContext, useReducer, ReactNode, useEffect, useRef } from 'react';
+import { useRouter } from 'next/router';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css'; 
+import 'react-toastify/dist/ReactToastify.css';
 
-export interface FileData { 
+// Types
+export interface FileData {
   filename: string;
   originalname: string;
   path: string;
@@ -23,19 +24,63 @@ export interface Shop {
   };
 }
 
-interface FileContextProps {
+interface State {
   filesData: FileData[];
-  setFilesData: React.Dispatch<React.SetStateAction<FileData[]>>;
+  selectedShop: Shop | null;
+  sessionId: string | null;
+  shopStatus: { [key: string]: boolean };
+  shops: Shop[];
+  showLocationMessage: boolean;
+}
+
+type Action =
+  | { type: 'SET_FILES_DATA'; payload: FileData[] }
+  | { type: 'ADD_FILES'; payload: FileData[] }
+  | { type: 'REMOVE_FILE'; payload: number }
+  | { type: 'CLEAR_FILES' }
+  | { type: 'SET_SELECTED_SHOP'; payload: Shop | null }
+  | { type: 'SET_SESSION_ID'; payload: string | null }
+  | { type: 'SET_SHOP_STATUS'; payload: { [key: string]: boolean } }
+  | { type: 'SET_SHOPS'; payload: Shop[] }
+  | { type: 'SET_SHOW_LOCATION_MESSAGE'; payload: boolean };
+
+// Reducer
+const reducer = (state: State, action: Action): State => {
+  switch (action.type) {
+    case 'SET_FILES_DATA':
+      return { ...state, filesData: action.payload };
+    case 'ADD_FILES':
+      return { ...state, filesData: [...state.filesData, ...action.payload] };
+    case 'REMOVE_FILE':
+      return { ...state, filesData: state.filesData.filter((_, i) => i !== action.payload) };
+    case 'CLEAR_FILES':
+      return { ...state, filesData: [] };
+    case 'SET_SELECTED_SHOP':
+      return { ...state, selectedShop: action.payload };
+    case 'SET_SESSION_ID':
+      return { ...state, sessionId: action.payload };
+    case 'SET_SHOP_STATUS':
+      return { ...state, shopStatus: action.payload };
+    case 'SET_SHOPS':
+      return { ...state, shops: action.payload };
+    case 'SET_SHOW_LOCATION_MESSAGE':
+      return { ...state, showLocationMessage: action.payload };
+    default:
+      return state;
+  }
+};
+
+// Context
+interface FileContextProps extends State {
+  setFilesData: (files: FileData[]) => void;
   addFiles: (files: FileData[]) => void;
   removeFile: (index: number) => void;
   clearFiles: () => void;
-  selectedShop: Shop | null;
-  setSelectedShop: React.Dispatch<React.SetStateAction<Shop | null>>;
-  shopStatus: { [key: string]: boolean };
-  sessionId: string | null;
+  setSelectedShop: (shop: Shop | null) => void;
   setSessionId: (id: string | null) => void;
-  shops: Shop[];
-  showLocationMessage:boolean
+  setShopStatus: (status: { [key: string]: boolean }) => void;
+  setShops: (shops: Shop[]) => void;
+  setShowLocationMessage: (show: boolean) => void;
 }
 
 const FileContext = createContext<FileContextProps | undefined>(undefined);
@@ -48,29 +93,33 @@ export const useFileData = () => {
   return context;
 };
 
+// Provider
 export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [filesData, setFilesData] = useState<FileData[]>([]);
-  const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [shopStatus, setShopStatus] = useState<{ [key: string]: boolean }>({});
-  const [shops, setShops] = useState<Shop[]>([]);
+  const initialState: State = {
+    filesData: [],
+    selectedShop: null,
+    sessionId: null,
+    shopStatus: {},
+    shops: [],
+    showLocationMessage: false,
+  };
+
+  const [state, dispatch] = useReducer(reducer, initialState);
   const shopHandledRef = useRef(false);
   const router = useRouter();
-  const [showLocationMessage, setShowLocationMessage] = useState(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-  const addFiles = (files: FileData[]) => {
-    setFilesData((prevFiles) => [...prevFiles, ...files]);
-  };
-
-  const removeFile = (index: number) => {
-    setFilesData((prevFiles) => prevFiles.filter((_, i) => i !== index));
-  };
-
-  const clearFiles = () => {
-    setFilesData([]);
-  };
+  // Functions to dispatch actions
+  const setFilesData = (files: FileData[]) => dispatch({ type: 'SET_FILES_DATA', payload: files });
+  const addFiles = (files: FileData[]) => dispatch({ type: 'ADD_FILES', payload: files });
+  const removeFile = (index: number) => dispatch({ type: 'REMOVE_FILE', payload: index });
+  const clearFiles = () => dispatch({ type: 'CLEAR_FILES' });
+  const setSelectedShop = (shop: Shop | null) => dispatch({ type: 'SET_SELECTED_SHOP', payload: shop });
+  const setSessionId = (id: string | null) => dispatch({ type: 'SET_SESSION_ID', payload: id });
+  const setShopStatus = (status: { [key: string]: boolean }) => dispatch({ type: 'SET_SHOP_STATUS', payload: status });
+  const setShops = (shops: Shop[]) => dispatch({ type: 'SET_SHOPS', payload: shops });
+  const setShowLocationMessage = (show: boolean) => dispatch({ type: 'SET_SHOW_LOCATION_MESSAGE', payload: show });
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -84,24 +133,19 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           if (shopResponse.data && !shopResponse.data.message) {
             setSelectedShop(shopResponse.data);
-            setShops([shopResponse.data]);  
-            setShopStatus((prevStatus) => ({
-              ...prevStatus,
-              [shopResponse.data.userId]: shopResponse.data.status,
-            }));
+            setShops([shopResponse.data]);
+            setShopStatus({ [shopResponse.data.userId]: shopResponse.data.status });
             router.replace(router.pathname, undefined, { shallow: true });
-            shopHandledRef.current = true; // Mark that shop was handled
-            return;  
+            shopHandledRef.current = true;
+            return;
           }
 
-          // Handle case when the shopId is invalid or not found
           if (shopResponse.data.message) {
             toast.error(shopResponse.data.message);
-            shopHandledRef.current = false; // Mark that shop was not handled
-            await fetchShopsBasedOnLocation(); // Fetch shops based on location
+            shopHandledRef.current = false;
+            await fetchShopsBasedOnLocation();
           }
         } else {
-          // If no shopId is present, fetch shops based on location
           await fetchShopsBasedOnLocation();
         }
       } catch (error) {
@@ -150,17 +194,13 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             return statusObj;
           }, {});
     
-          setShopStatus((prevStatus) => ({
-            ...prevStatus,
-            ...newShopStatus,
-          }));
+          setShopStatus(newShopStatus);
         }
       } catch (error) {
         console.error('Error fetching shops:', error);
       }
     };
     
-    // Function to fetch a default location (e.g., based on IP)
     const fetchDefaultLocation = async () => {
       try {
         const response = await axios.get('https://ipapi.co/json/');
@@ -170,7 +210,6 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         };
       } catch (error) {
         console.error('Error fetching default location:', error);
-        // Return a hardcoded default location as a last resort
         return { lat: 0, lng: 0 };
       }
     };
@@ -190,26 +229,24 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     };
 
-    fetchShopStatus(); // Initial fetch
-    const interval = setInterval(fetchShopStatus, 30000); // Poll every 30 seconds
+    fetchShopStatus();
+    const interval = setInterval(fetchShopStatus, 30000);
 
-    return () => clearInterval(interval); // Cleanup on unmount
+    return () => clearInterval(interval);
   }, []);
 
   return (
     <FileContext.Provider value={{ 
-      filesData, 
-      setFilesData, 
-      addFiles, 
-      removeFile, 
-      clearFiles, 
-      selectedShop, 
-      setSelectedShop, 
-      sessionId, 
-      setSessionId, 
-      shopStatus,
-      shops,
-      showLocationMessage,
+      ...state, 
+      setFilesData,
+      addFiles,
+      removeFile,
+      clearFiles,
+      setSelectedShop,
+      setSessionId,
+      setShopStatus,
+      setShops,
+      setShowLocationMessage
     }}>
       {children}
     </FileContext.Provider>

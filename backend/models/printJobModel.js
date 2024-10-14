@@ -14,6 +14,15 @@ const printJobSchema = new mongoose.Schema({
   colorMode: { type: String, enum: ['color', 'b&w'], required: true },
   orientation: { type: String, enum: ['portrait', 'landscape'], required: true },
   createdAt: { type: Date, default: Date.now },
+  lastUpdate: { type: Date, default: Date.now },
+  clientId: { type: String },
+  progressPercentage: { type: Number, min: 0, max: 100, default: 0 },
+  errorMessage: { type: String },
+});
+
+printJobSchema.pre('findOneAndUpdate', function(next) {
+  this.set({ lastUpdate: new Date() });
+  next();
 });
 
 module.exports = mongoose.model('PrintJob', printJobSchema);

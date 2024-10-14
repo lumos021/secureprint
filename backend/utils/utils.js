@@ -58,6 +58,59 @@ const rotatePDFToLandscape = async (inputPath, outputPath) => {
     await fs.writeFile(outputPath, modifiedPdfBytes);
 };
 
+const combinePagesPerSheet = async (inputPath, outputPath, pagesPerSheet) => {
+    const pdfBytes = await fs.readFile(inputPath);
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const pages = pdfDoc.getPages();
+  
+    const newPdfDoc = await PDFDocument.create();
+    const { width, height } = pages[0].getSize();
+  
+    // Define gap size (adjust as needed)
+    const gap = 5; // 5 points gap
+  
+    for (let i = 0; i < pages.length; i += pagesPerSheet) {
+      const newPage = newPdfDoc.addPage([width, height]);
+      const pagesInSheet = Math.min(pagesPerSheet, pages.length - i);
+  
+      for (let j = 0; j < pagesInSheet; j++) {
+        const pageIndex = i + j;
+        const embeddedPage = await newPdfDoc.embedPage(pages[pageIndex]);
+  
+        let x, y, scaleFactor;
+        if (pagesPerSheet === 2) {
+          // Center-align and stack pages vertically with gap
+          scaleFactor = (height - gap) / (2 * height);
+          const scaledHeight = height * scaleFactor;
+          x = (width - width * scaleFactor) / 2; // Center horizontally
+          y = height - scaledHeight - (j * (scaledHeight + gap)); // Start from top with gap
+        } else if (pagesPerSheet === 4) {
+          scaleFactor = (width - gap) / (2 * width);
+          const scaledWidth = width * scaleFactor;
+          const scaledHeight = height * scaleFactor;
+          x = (j % 2) * (scaledWidth + gap);
+          y = height - scaledHeight - Math.floor(j / 2) * (scaledHeight + gap);
+        } else if (pagesPerSheet === 9) {
+          scaleFactor = (width - 2 * gap) / (3 * width);
+          const scaledWidth = width * scaleFactor;
+          const scaledHeight = height * scaleFactor;
+          x = (j % 3) * (scaledWidth + gap);
+          y = height - scaledHeight - Math.floor(j / 3) * (scaledHeight + gap);
+        }
+  
+        newPage.drawPage(embeddedPage, {
+          x,
+          y,
+          width: width * scaleFactor,
+          height: height * scaleFactor,
+        });
+      }
+    }
+  
+    const newPdfBytes = await newPdfDoc.save();
+    await fs.writeFile(outputPath, newPdfBytes);
+  };
+
 const mergeProcessedPDFs = async (filesData, printSettings) => {
   const mergedPdf = await PDFDocument.create();
   let totalPageCount = 0;
@@ -103,5 +156,6 @@ const mergeProcessedPDFs = async (filesData, printSettings) => {
 module.exports = {
     convertToBlackAndWhite,
     rotatePDFToLandscape,
-    mergeProcessedPDFs
+    mergeProcessedPDFs,
+    combinePagesPerSheet
 };

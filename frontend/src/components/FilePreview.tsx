@@ -1,9 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FaTimes } from 'react-icons/fa';
 import dynamic from 'next/dynamic';
 import LoadingSpinner from './ui/LoadingSpinner';
 
-// Dynamically import react-pdf components without SSR
 const Document = dynamic(() => import('react-pdf').then(mod => mod.Document), { ssr: false });
 const Page = dynamic(() => import('react-pdf').then(mod => mod.Page), { ssr: false });
 
@@ -15,9 +14,9 @@ interface FilePreviewProps {
 }
 
 const FilePreview: React.FC<FilePreviewProps> = React.memo(({ url, index, totalPages, handleRemoveFile }) => {
-    FilePreview.displayName = 'FilePreview';
-  
-    useEffect(() => {
+  const [numPages, setNumPages] = useState<number | null>(null);
+
+  useEffect(() => {
     const loadPdfjs = async () => {
       const { pdfjs } = await import('react-pdf');
       pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
@@ -26,18 +25,16 @@ const FilePreview: React.FC<FilePreviewProps> = React.memo(({ url, index, totalP
     loadPdfjs();
   }, []);
 
+  function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
+    setNumPages(numPages);
+  }
+
   return (
-    <div className="self-start flex flex-col gap-1 items-center mt-5 mb-3 first:ml-auto pl-6">
+    <div className="flex flex-col gap-1 items-center m-2">
       <div className="preview-container p-1 relative bg-white rounded-lg shadow-md">
-        <Document file={url} loading={<LoadingSpinner />}>
+        <Document file={url} onLoadSuccess={onDocumentLoadSuccess} loading={<LoadingSpinner />}>
           <div className="flex items-center justify-center" style={{ height: '100%' }}>
-            <Page
-              pageNumber={1}
-              width={194}
-              height={275}
-              renderTextLayer={false}
-              renderAnnotationLayer={false}
-            />
+            <Page pageNumber={1} width={194} height={275} renderTextLayer={false} renderAnnotationLayer={false} />
           </div>
         </Document>
         <button
@@ -48,10 +45,12 @@ const FilePreview: React.FC<FilePreviewProps> = React.memo(({ url, index, totalP
         </button>
       </div>
       <div className="w-full text-center">
-        <p className="text-md font-medium text-gray-900">File {index + 1} ({totalPages[index] || 'Loading...'} pages)</p>
+        <p className="text-md font-medium text-gray-900">File {index + 1} ({numPages || 'Loading...'} pages)</p>
       </div>
     </div>
   );
 });
+
+FilePreview.displayName = 'FilePreview';
 
 export default FilePreview;

@@ -1,7 +1,7 @@
 // utils/wsMessageHandler.js
 const logger = require('./logger');
 const clientManager = require('../utils/clientManager.js');
-const PrintJob = require('../models/printJobModel');
+const printJobManager = require('./printJobManager');
 
 module.exports = async (ws, message) => {
     try {
@@ -35,15 +35,35 @@ module.exports = async (ws, message) => {
                 });
                 break;
 
-            case 'print_job_update':
+                case 'print_job_update':
                 try {
-                    const { jobId, status } = parsedMessage.data;
-                    await PrintJob.findOneAndUpdate({ jobId: jobId }, { status: status });
-                    logger.info(`Updated print job ${jobId} status to ${status}`, { clientId: ws.userId });
-                    // ws.send(JSON.stringify({ type: 'print_job_update_response', success: true, jobId, status }));
+                    const { jobId, status, progressPercentage, errorMessage } = parsedMessage.data;
+                    const updatedJob = await printJobManager.updatePrintJobStatus(
+                        jobId, 
+                        status, 
+                        ws.userId, 
+                        progressPercentage, 
+                        errorMessage
+                    );
+                    // if (updatedJob) {
+                    //     ws.send(JSON.stringify({ 
+                    //         type: 'print_job_update_response', 
+                    //         success: true, 
+                    //         jobId, 
+                    //         status,
+                    //         progressPercentage: updatedJob.progressPercentage,
+                    //         lastUpdate: updatedJob.lastUpdate
+                    //     }));
+                    // } else {
+                    //     ws.send(JSON.stringify({ 
+                    //         type: 'print_job_update_response', 
+                    //         success: false, 
+                    //         error: 'Print job not found'
+                    //     }));
+                    // }
                 } catch (error) {
                     logger.error(`Error updating print job status: ${error}`, { clientId: ws.userId });
-                    // ws.send(JSON.stringify({ type: 'print_job_update_response', success: false, error: error.message }));
+                    ws.send(JSON.stringify({ type: 'print_job_update_response', success: false, error: error.message }));
                 }
                 break;
 

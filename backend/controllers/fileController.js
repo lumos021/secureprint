@@ -1,5 +1,5 @@
 // controllers/fileController.js
-const fs = require('fs'); 
+const fs = require('fs');
 const fsp = require('fs').promises;
 const path = require('path');
 const File = require('../models/fileModel.js');
@@ -197,88 +197,131 @@ const getPdfInfo = async (req, res) => {
 
 const processFile = async (req, res) => {
     const startTime = Date.now();
-    const { filename, printSettings } = req.body;
+    const { printSettings, newFile } = req.body;
+    const sessionId = req.headers['x-session-id'];
 
-    logger.info('File processing request received', {
-        requestId: req.requestId,
-        filename,
-        printSettings
-    });
+    logger.info('File processing request received', { requestId: req.requestId, sessionId, printSettings });
 
-    if (!validateFilename(filename) || !validatePrintSettings(printSettings)) {
-        logger.warn('Invalid filename or print settings', {
-            requestId: req.requestId,
-            filename,
-            printSettings
-        });
-        return res.status(400).json({ message: 'Invalid filename or print settings' });
+    if (!validatePrintSettings(printSettings)) {
+        logger.warn('Invalid print settings', { requestId: req.requestId, printSettings });
+        return res.status(400).json({ message: 'Invalid print settings' });
+    }
+
+    const session = sessionManager.getSession(sessionId); // Initialize session here
+    if (!session) {
+        logger.warn('Session not found', { requestId: req.requestId, sessionId });
+        return res.status(400).json({ message: 'Session not found' });
     }
 
     const settings = { ...defaultPrintSettings, ...printSettings };
-    const filePath = getResolvedFilePath(filename);
-    const processedFileName = `processed-${Date.now()}-${sanitizeFilename(path.basename(filename, path.extname(filename)))}.pdf`;
-    const processedFilePath = getResolvedFilePath(processedFileName);
+    const pagesPerSheet = parseInt(settings.pagesPerSheet, 10);
 
     try {
-        await fsp.access(filePath);
-        const fileExtension = path.extname(filename).toLowerCase();
+        if (!Array.isArray(session.files) || session.files.length === 0) {
+            throw new Error('No files found in session');
+        }
+        let result;
 
-        if (!['.pdf', '.jpg', '.jpeg', '.png'].includes(fileExtension)) {
-            logger.warn('Unsupported file type', {
-                requestId: req.requestId,
-                filename,
-                fileExtension
+        if (pagesPerSheet > 1) {
+            logger.info('Starting mergeAndCombine task', { filesCount: session.files.length, settings });
+            result = await workerPool.runTask({
+                type: 'mergeAndCombine',
+                filesData: session.files,
+                settings: printSettings,
+                newFile: newFile || null,
             });
-            return res.status(400).json({ error: 'Unsupported file type' });
+        } else {
+            logger.info('Starting individual file processing', { filesCount: session.files.length, settings });
+            const processingPromises = session.files.map(file =>
+                workerPool.runTask({
+                    type: file.mimetype.startsWith('image/') ? 'image' : 'pdf',
+                    filePath: getResolvedFilePath(file.filename),
+                    processedFilePath: getResolvedFilePath(`processed-${Date.now()}-${sanitizeFilename(file.filename)}`),
+                    settings,
+                })
+            );
+            result = await Promise.all(processingPromises);
         }
 
-        // Use worker pool for CPU-intensive task
-        const result = await workerPool.runTask({
-            type: fileExtension === '.pdf' ? 'pdf' : 'image',
-            filePath,
-            processedFilePath,
-            settings
-        });
+        logger.info('Task result received', { result: JSON.stringify(result) });
 
-        if (!result.success) {
-            throw new Error(result.error);
+        if (!result) {
+            throw new Error('No result returned from worker task');
         }
 
-        await File.findOneAndUpdate(
-            { filename: sanitizeFilename(filename) },
-            { $set: { processedFilename: processedFileName } },
-            { new: true }
-        );
-        // Update the session with the processed filename
-        const sessionId = req.headers['x-session-id'];
-        const session = sessionManager.getSession(sessionId);
-        sessionManager.updateLastActivity(sessionId);
-        if (session) {
-            const fileIndex = session.files.findIndex(f => f.filename === sanitizeFilename(filename));
-            if (fileIndex !== -1) {
-                session.files[fileIndex].processedFilename = processedFileName;
+        // Handling the result based on pagesPerSheet
+        if (pagesPerSheet > 1) {
+            // Merged file case
+            if (!result.success) {
+                throw new Error(result.error || 'Error processing merged files');
+            }
+
+            const mergedFilename = result.processedFilenames[0]; // Single merged file
+
+            const dbUpdateResult = await File.findOneAndUpdate(
+                { filename: sanitizeFilename(session.files[0].filename) },
+                {
+                    $set: {
+                        processedFilename: mergedFilename
+                    }
+                },
+                { upsert: true, new: true }
+            );
+            logger.debug('Database update result for merged file', { dbUpdateResult });
+
+            session.mergedFiles = result.processedFilenames;
+
+        } else {
+            // Individual file case
+            const failedTask = result.find(r => !r.success);
+            if (failedTask) {
+                throw new Error(failedTask.error || 'Error processing files');
+            }
+
+            for (let i = 0; i < session.files.length; i++) {
+                const file = session.files[i];
+                const processedFileName = result[i].processedFilename;
+
+                const dbUpdateResult = await File.findOneAndUpdate(
+                    { filename: sanitizeFilename(file.filename) },
+                    {
+                        $set: {
+                            processedFilename: processedFileName
+                        }
+                    },
+                    { upsert: true, new: true }
+                );
+                logger.debug('Database update result for individual file', { dbUpdateResult });
+                // Update the session's processed filename
+                file.processedFilename = processedFileName;
             }
         }
 
+        // Update session with processed filenames
+        sessionManager.updateLastActivity(sessionId);
+
         const duration = Date.now() - startTime;
-        logger.info('File processed successfully', {
-            requestId: req.requestId,
-            filename,
-            processedFilename: processedFileName,
-            duration: `${duration}ms`
+        logger.info('Files processed successfully', { requestId: req.requestId, sessionId, duration: `${duration}ms` });
+
+        return res.status(200).json({
+            message: 'Files processed successfully',
+            processedFiles: pagesPerSheet > 1 ? result.processedFilenames : result.map(r => r.processedFilename),
         });
 
-        return res.status(200).json({ message: 'File processed successfully', processedFilePath: processedFileName });
     } catch (error) {
-        logger.error('Error processing file', {
+        logger.error('Error processing files', {
             error: error.message,
             stack: error.stack,
             requestId: req.requestId,
-            filename
+            sessionId,
+            printSettings,
+            filesCount: session.files.length
         });
-        res.status(500).json({ error: 'Error processing file. Please try again later.' });
+        res.status(500).json({ error: 'Error processing files. Please try again later.' });
     }
 };
+
+
 
 const finalizeFiles = async (req, res, wss) => {
     const startTime = Date.now();
@@ -318,17 +361,18 @@ const finalizeFiles = async (req, res, wss) => {
 
         // Process files to ensure we're using processed versions
         const processedFilesData = await Promise.all(filesData.map(async (file) => {
-            const sanitizedFilename = sanitizeFilename(file.filename);
-            if (!validateFilename(sanitizedFilename)) {
-                throw new Error(`Invalid filename: ${sanitizedFilename}`);
+            const processedFilename = session.mergedFiles ? session.mergedFiles[0] : file.processedFilename;
+            if (!processedFilename || !validateFilename(processedFilename)) {
+                throw new Error(`Invalid processed filename: ${processedFilename}`);
             }
-            const fileRecord = await File.findOne({ filename: sanitizedFilename });
-            if (fileRecord && fileRecord.processedFilename) {
+            const fileRecord = await File.findOne({ processedFilename: processedFilename });
+            if (fileRecord) {
                 return { filename: fileRecord.processedFilename };
             } else {
-                throw new Error(`Processed file not found for ${sanitizedFilename}`);
+                throw new Error(`Processed file not found: ${processedFilename}`);
             }
         }));
+        
 
         // Use worker pool for merging PDFs
         const mergeResult = await workerPool.runTask({
@@ -347,19 +391,19 @@ const finalizeFiles = async (req, res, wss) => {
         // Set the merged filename in the session
         sessionManager.setMergedFilename(sessionId, finalFilename);
 
-        const electronResponse = await sendPDFToElectronApp(finalFilePath, clientId, printSettings,jobId);
+        const electronResponse = await sendPDFToElectronApp(finalFilePath, clientId, printSettings, jobId);
         try {
             const printJob = new PrintJob({
                 jobId,
                 sessionId,
-                userId: clientId, 
+                userId: clientId,
                 fileId: finalFilename,
                 pageCount: mergeResult.pageCount,
                 colorMode: printSettings.color === 'color' ? 'color' : 'b&w',
                 orientation: printSettings.orientation,
                 status: 'pending'
             });
-        
+
             const savedPrintJob = await printJob.save();
             logger.info('Print job saved successfully', { jobId: savedPrintJob.jobId });
         } catch (saveError) {
