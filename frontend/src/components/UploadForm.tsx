@@ -1,35 +1,37 @@
-import React, { useRef, useState, useEffect } from 'react'; 
+import React, { useRef, useState, useEffect } from 'react';
 import { useFileData } from '../context/FileContext';
 import axios from 'axios';
 import { FaCloudUploadAlt } from 'react-icons/fa';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
-import LoadingScreen from './LoadingScreen';
-
+import UploadingModal from './UploadingModal';
 
 const UploadForm: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { setFilesData, selectedShop, shopStatus,setSessionId } = useFileData();
+  const { setFilesData, selectedShop, shopStatus, setSessionId } = useFileData();
   const router = useRouter();
   const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-
   const [isShopOffline, setIsShopOffline] = useState(true);
+
+  useEffect(() => {
+    if (selectedShop) {
+      setIsShopOffline(shopStatus[selectedShop.userId] === false);
+    }
+  }, [selectedShop, shopStatus]);
 
   const handleButtonClick = () => {
     if (selectedShop && fileInputRef.current && !isShopOffline) {
       fileInputRef.current.click();
     }
   };
-  useEffect(() => {
-    if (selectedShop) {
-      setIsShopOffline(shopStatus[selectedShop.userId] === false);
-    }
-  }, [selectedShop, shopStatus]);
+
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0 && selectedShop) {
       setIsUploading(true);
+      setUploadProgress(0);
       const formData = new FormData();
       Array.from(event.target.files).forEach(file => {
         formData.append('files', file);
@@ -39,6 +41,10 @@ const UploadForm: React.FC = () => {
       try {
         const response = await axios.post(`${apiUrl}/api/files/upload`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (progressEvent) => {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percentCompleted);
+          },
         });
         setFilesData(response.data.files);
 
@@ -48,16 +54,12 @@ const UploadForm: React.FC = () => {
 
         router.push('/preview');
       } catch (error) {
-        toast.error("Failed to upload files,try again later")
-        // Show error message to user
+        toast.error("Failed to upload files, try again later");
       } finally {
         setIsUploading(false);
       }
     }
   };
-  if (isUploading) {
-    return <LoadingScreen />;
-  }
 
   return (
     <div className="mt-8">
@@ -90,6 +92,7 @@ const UploadForm: React.FC = () => {
       <p className="text-sm text-gray-600 mt-2">
         Max file size: 100MB • Supported formats: PDF, JPG, PNG
       </p>
+      <UploadingModal isOpen={isUploading} progress={uploadProgress} />
     </div>
   );
 };

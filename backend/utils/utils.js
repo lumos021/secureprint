@@ -70,20 +70,27 @@ const combinePagesPerSheet = async (inputPath, outputPath, pagesPerSheet) => {
     const gap = 5; // 5 points gap
   
     for (let i = 0; i < pages.length; i += pagesPerSheet) {
-      const newPage = newPdfDoc.addPage([width, height]);
+      let newPage;
       const pagesInSheet = Math.min(pagesPerSheet, pages.length - i);
+  
+      if (pagesPerSheet === 2) {
+        // For 2 pages per sheet, create a landscape page
+        newPage = newPdfDoc.addPage([width * 2 + gap, height]);
+      } else {
+        newPage = newPdfDoc.addPage([width, height]);
+      }
   
       for (let j = 0; j < pagesInSheet; j++) {
         const pageIndex = i + j;
         const embeddedPage = await newPdfDoc.embedPage(pages[pageIndex]);
   
         let x, y, scaleFactor;
+  
         if (pagesPerSheet === 2) {
-          // Center-align and stack pages vertically with gap
-          scaleFactor = (height - gap) / (2 * height);
-          const scaledHeight = height * scaleFactor;
-          x = (width - width * scaleFactor) / 2; // Center horizontally
-          y = height - scaledHeight - (j * (scaledHeight + gap)); // Start from top with gap
+          // Place pages side by side
+          scaleFactor = 1; // No scaling needed
+          x = j * (width + gap);
+          y = 0; // Align to bottom
         } else if (pagesPerSheet === 4) {
           scaleFactor = (width - gap) / (2 * width);
           const scaledWidth = width * scaleFactor;

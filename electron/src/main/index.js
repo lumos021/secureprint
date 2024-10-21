@@ -7,13 +7,11 @@ const authManager = require('../auth/authManager');
 const wsClient = require('../websocket/wsClient');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
-const PrintQueue = require('../printer/printQueue');
-// const PrinterManager = require('../printer/printerManager');
+const PrinterManager = require('../printer/printerManager');
 
 let mainWindow;
 let powerSaveId;
-let printQueue;
-// let printerManager;
+let printerManager;
 
 const createWindow = async () => {
   mainWindow = new BrowserWindow({
@@ -31,18 +29,19 @@ const createWindow = async () => {
     mainWindow = null;
   });
   
-  wsClient.setMainWindow(mainWindow); 
-  printQueue = new PrintQueue(mainWindow);
-  setupIPC(mainWindow, printQueue);  
+  // Create PrinterManager instance before using it
+  printerManager = new PrinterManager(mainWindow);
+  
+  // Pass printerManager to wsClient
+  wsClient.setMainWindow(mainWindow, printerManager);
+  
+  setupIPC(mainWindow, printerManager);
   logger.info('IPC setup complete', mainWindow);
   
   await mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
   createMenu();
   createTray(mainWindow);
-
-  // Initialize PrinterManager with mainWindow
-  // printerManager = new PrinterManager(mainWindow);
 
   const authState = await authManager.checkAuthState();
   logger.info(`Auth state: ${JSON.stringify(authState)}`, mainWindow);
@@ -100,5 +99,7 @@ powerMonitor.on('resume', async () => {
 
 module.exports = { 
   getMainWindow: () => mainWindow,
-  getPrintQueue: () => printQueue
+  // getPrintQueue: () => printQueue
+  getPrinterManager: () => printerManager
+
 };

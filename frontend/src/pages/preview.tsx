@@ -159,6 +159,7 @@ const Preview: React.FC = () => {
       toast.error('Please select a shop before finalizing the print job.');
       return;
     }
+    setIsModalOpen(true);
     setPrintStatus('send');
     try {
       const pagesPerSheetValue = parseInt(printSettings.pagesPerSheet, 10);
@@ -221,6 +222,7 @@ const Preview: React.FC = () => {
                 index={index}
                 totalPages={totalPages}
                 handleRemoveFile={handleRemoveFile}
+                pagesPerSheet={printSettings.pagesPerSheet}
               />
             </div>
           ))

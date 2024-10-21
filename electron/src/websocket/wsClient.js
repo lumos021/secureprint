@@ -2,11 +2,11 @@ const WebSocket = require('ws');
 const config = require('../utils/config');
 const logger = require('../utils/logger');
 const authManager = require('../auth/authManager');
-const printQueue = require('../printer/printQueue');
+const PrintQueue = require('../printer/printQueue');
 const printerManager = require('../printer/printerManager')
 
 class WSClient {
-    constructor() {
+    constructor(printerManager) {
         this.ws = null;
         this.reconnectAttempts = 0;
         this.messageQueue = [];
@@ -14,14 +14,17 @@ class WSClient {
         this.mainWindow = null;  // Placeholder for mainWindow
         this.printQueue = null;
         this.printJobs = new Map();
+        this.printerManager = printerManager; // Add this line
+
 
     }
 
-    setMainWindow(mainWindow) {
+    setMainWindow(mainWindow, printerManager) {
         this.mainWindow = mainWindow;
-        this.printQueue = new printQueue(mainWindow);
+        this.printerManager = printerManager;
+        this.printQueue = new PrintQueue(this.printerManager);
         this.setupPrintQueueListeners();  
-    }
+      }
 
     async connect() {
         if (this.isConnecting) return;
@@ -55,7 +58,7 @@ class WSClient {
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.reconnectInterval = 1000; // Reset reconnect interval
-        this.sendInitialState();
+        // this.sendInitialState();
         this.sendQueuedMessages();
         // Send authentication message
         setTimeout(() => {
@@ -153,7 +156,7 @@ class WSClient {
                     printerName: job.printSettings.printerName,
                     settings: job.printSettings,
                     priority: job.printSettings.priority || 'normal'
-                });
+                }, this.printerManager);
                 this.printJobs.delete(jobId);
                 this.sendPrintJobUpdate(jobId, 'pending');
             } else {
@@ -207,9 +210,9 @@ class WSClient {
         logger.info(`Print job update sent: Job ${jobId} status changed to ${status}`);
     }
 
-    sendPrinterStatus() {
+    async sendPrinterStatus() {
         const status = {
-            printers: this.printQueue.getPrinterStatus(),
+            printers: await this.printerManager.getPrinterStatus(),
             queueStatus: this.printQueue.getQueueStatus()
         };
         this.sendMessage({ type: 'printer-status', data: status });
@@ -281,8 +284,8 @@ class WSClient {
             type: 'initial_state',
             data: {
                 clientId: clientId,
-                printerStatus: printerStatus,
-                queueStatus: this.printQueue.getQueueStatus()
+                // printerStatus: printerStatus,
+                // queueStatus: this.printQueue.getQueueStatus()
             }
         };
 

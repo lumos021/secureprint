@@ -14,8 +14,10 @@ const validChannels = [
   'login',
   'check-auth-state',
   'get-daily-stats',
-  'printer-status'
-
+  'printer-status',
+  'add-printer-preference',
+  'remove-printer-preference',
+  'get-printer-preferences',
 ];
 
 contextBridge.exposeInMainWorld('electron', {
@@ -42,7 +44,10 @@ contextBridge.exposeInMainWorld('electron', {
       'login',
       'check-auth-state',
       'get-daily-stats',
-      'printer-status'
+      'printer-status',
+      'add-printer-preference',
+      'remove-printer-preference',
+      'get-printer-preferences',
     ];
     if (validInvokeChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, data);

@@ -1,6 +1,7 @@
 const { ipcMain } = require('electron');
 const authManager = require('../auth/authManager');
-const printerManager = require('../printer/printerManager');
+// const printerManager = require('../printer/printerManager');
+const printerPreferences = require('../printer/printerPreferences');
 const printQueue = require('../printer/printQueue');
 const wsClient = require('../websocket/wsClient');
 const logger = require('../utils/logger');
@@ -9,7 +10,7 @@ const config = require('../utils/config');
 const apiUrl = config.apiUrl;
 
 
-function setupIPC(mainWindow) {
+function setupIPC(mainWindow, printerManager) {
   logger.info('Setting up IPC handlers', mainWindow);
 
   ipcMain.handle('login', async (event, credentials) => {
@@ -139,7 +140,21 @@ function setupIPC(mainWindow) {
       throw error;
     }
   });
+  ipcMain.handle('add-printer-preference', async (event, preference) => {
+    await printerManager.addPrinterPreference(preference.printerName, preference.isColor, preference.isBW);
+  });
+  
+  ipcMain.handle('remove-printer-preference', async (event, printerName) => {
+    await printerManager.removePrinterPreference(printerName);
+  });
+  
+  ipcMain.handle('get-printer-preferences', async (event) => {
+    return await printerManager.getPrinterPreferences();
+  });
 
+  ipcMain.handle('update-printer-priority', async (event, { printerName, priority }) => {
+    printerPreferences.updatePrinterPriority(printerName, priority);
+  });
 }
 
-module.exports = { setupIPC };
+module.exports = { setupIPC }; 

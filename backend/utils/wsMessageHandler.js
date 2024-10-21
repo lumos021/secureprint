@@ -67,13 +67,13 @@ module.exports = async (ws, message) => {
                 }
                 break;
 
-            case 'initial_state':
-                logger.info('Initial state message received', {
-                    clientId: ws.userId,
-                    data: parsedMessage.data,
-                    timestamp: new Date().toISOString()
-                });
-                break;
+            // case 'initial_state':
+            //     logger.info('Initial state message received', {
+            //         clientId: ws.userId,
+            //         data: parsedMessage.data,
+            //         timestamp: new Date().toISOString()
+            //     });
+            //     break;
 
             default:
                 logger.warn('Unknown message type', { type: parsedMessage.type, clientId: ws.userId });

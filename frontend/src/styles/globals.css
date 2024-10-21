@@ -69,7 +69,19 @@ p {
       @apply w-[194px] h-[275.6px];
     }
   }
+
+  /* Landscape mode for 2 pages per sheet */
+  .landscape-preview-container {
+    @apply w-[302.6px] h-[213px] rounded-md shadow-md bg-white;
+  }
+
+  @media (max-width: 768px) {
+    .landscape-preview-container {
+      @apply w-[275.6px] h-[194px];
+    }
+  }
 }
+
 @keyframes pulse {
   0% {
     box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7);

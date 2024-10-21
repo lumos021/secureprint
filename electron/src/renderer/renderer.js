@@ -27,7 +27,17 @@ const elements = {
   nameInput: document.getElementById('name'),
   emailInput: document.getElementById('email'),
   registerPasswordInput: document.getElementById('register-password'),
-  addressInput: document.getElementById('address')
+  addressInput: document.getElementById('address'),
+  printerList: document.getElementById('printerList'),
+  addPrinterBtn: document.getElementById('addPrinterBtn'),
+  addPrinterModal: document.getElementById('addPrinterModal'),
+  addPrinterForm: document.getElementById('addPrinterForm'),
+  printerSelectModal: document.getElementById('printerSelect'),
+  isColorCheckbox: document.getElementById('isColorCheckbox'),
+  isBWCheckbox: document.getElementById('isBWCheckbox'),
+  cancelAddPrinter: document.getElementById('cancelAddPrinter'),
+  priorityInput: document.getElementById('priorityInput'),
+  statusError: document.getElementById('statusError'),
 };
 
 const updatePrintStats = async () => {
@@ -45,11 +55,15 @@ const updatePrinterStatus = async () => {
   try {
     const { statusEl } = elements;
 
+    if (!statusEl) {
+      console.error('statusEl is undefined');
+      return;
+    }
+
     const printerStatus = await window.electron.invoke('printer-status');  // Ensure this IPC method exists
 
     if (printerStatus) {
       const { status } = printerStatus;
-
       statusEl.innerHTML = `<i class="fas fa-info-circle mr-2"></i>Printer Status: ${status}`;
     } else {
       statusEl.textContent = 'Printer Status: Unknown';
@@ -67,8 +81,20 @@ const setDarkMode = (isDark) => {
 };
 
 const showError = (type, message) => {
-  elements[`${type}Error`].textContent = message;
-  elements[`${type}Error`].classList.remove('hidden');
+  if (type === 'status') {
+    // Use a different method to display status errors
+    elements.statusEl.textContent = `Error: ${message}`;
+    elements.statusEl.classList.add('error');
+  } else {
+    const errorElement = elements[`${type}Error`];
+    if (errorElement) {
+      errorElement.textContent = message;
+      errorElement.classList.remove('hidden');
+    } else {
+      console.error(`Error element for type '${type}' not found.`);
+      alert(`${type} Error: ${message}`);
+    }
+  }
 };
 
 const clearErrors = () => {
@@ -260,7 +286,6 @@ const handleLogout = async () => {
       showScreen('loginScreen');
   } catch (error) {
       console.error('Logout failed:', error);
-      alert('Failed to logout. Please try again.');
   }
 };
 
@@ -275,6 +300,96 @@ elements.showLoginButton.addEventListener('click', () => showScreen('loginScreen
 elements.isShopCheckbox.addEventListener('change', handleShopCheckboxChange);
 elements.getLocationBtn.addEventListener('click', handleGetLocation);
 elements.logoutButton.addEventListener('click', handleLogout);
+elements.addPrinterBtn.addEventListener('click', showAddPrinterModal);
+elements.addPrinterForm.addEventListener('submit', handleAddPrinterPreference);
+elements.cancelAddPrinter.addEventListener('click', hideAddPrinterModal);
+
+async function showAddPrinterModal() {
+  try {
+    const printers = await window.electron.invoke('request-printer-list');
+    elements.printerSelectModal.innerHTML = printers.map(printer => 
+      `<option value="${printer.name}">${printer.name}${printer.isDefault ? ' (Default)' : ''}</option>`
+    ).join('');
+    elements.addPrinterModal.classList.remove('hidden');
+  } catch (error) {
+    console.error('Failed to load printer list:', error);
+    elements.statusEl.textContent = 'Failed to load printer list. Please try again.';
+    elements.statusEl.classList.add('error');
+  }
+}
+
+function hideAddPrinterModal() {
+  elements.addPrinterModal.classList.add('hidden');
+}
+
+async function handleAddPrinterPreference(event) {
+  event.preventDefault();
+  const printerName = elements.printerSelectModal.value;
+  const isColor = elements.isColorCheckbox.checked;
+  const isBW = elements.isBWCheckbox.checked;
+  const priority = parseInt(elements.priorityInput.value, 10) || 0;
+
+  try {
+    await window.electron.invoke('add-printer-preference', { printerName, isColor, isBW, priority });
+    hideAddPrinterModal();
+    await refreshPrinterPreferences();
+  } catch (error) {
+    showError('status', 'Failed to add printer preference. Please try again.');
+  }
+}
+
+async function refreshPrinterPreferences() {
+  try {
+    const preferences = await window.electron.invoke('get-printer-preferences');
+    elements.printerList.innerHTML = preferences.map(pref => `
+      <div class="bg-gray-100 dark:bg-gray-700 rounded-md p-4 flex justify-between items-center">
+        <div>
+          <h3 class="font-semibold">${pref.printerName}</h3>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            ${pref.isColor ? 'Color' : ''}
+            ${pref.isColor && pref.isBW ? ' & ' : ''}
+            ${pref.isBW ? 'Black & White' : ''}
+          </p>
+          <p class="text-sm text-gray-500 dark:text-gray-400">Priority: ${pref.priority}</p>
+        </div>
+        <div>
+          <button onclick="updatePrinterPriority('${pref.printerName}')" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mr-2">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button onclick="removePrinterPreference('${pref.printerName}')" class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    `).join('');
+  } catch (error) {
+    showError('status', 'Failed to refresh printer preferences. Please try again.');
+  }
+}
+
+async function removePrinterPreference(printerName) {
+  try {
+    await window.electron.invoke('remove-printer-preference', printerName);
+    await refreshPrinterPreferences();
+  } catch (error) {
+    showError('status', 'Failed to remove printer preference. Please try again.');
+  }
+}
+
+async function updatePrinterPriority(printerName) {
+  const newPriority = prompt(`Enter new priority for ${printerName}:`);
+  if (newPriority !== null) {
+    try {
+      await window.electron.invoke('update-printer-priority', { printerName, priority: parseInt(newPriority, 10) });
+      await refreshPrinterPreferences();
+    } catch (error) {
+      showError('status', 'Failed to update printer priority. Please try again.');
+    }
+  }
+}
+
+
+
 
 // Electron event listeners
 window.electron.receive('queue-update', handleQueueUpdate);
@@ -294,10 +409,14 @@ const initializeApp = async () => {
   showScreen(isAuthenticated ? 'mainApp' : 'loginScreen');
 
   // Refresh printers on initial load
+  await refreshPrinterPreferences();
   handleRefreshPrinters();
   updatePrinterStatus();
   updatePrintStats();
 
 };
-setInterval(updatePrintStats, 60000); 
-initializeApp();
+
+document.addEventListener('DOMContentLoaded', () => {
+  setInterval(updatePrintStats, 60000); 
+  initializeApp();
+});

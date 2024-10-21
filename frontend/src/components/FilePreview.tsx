@@ -11,9 +11,10 @@ interface FilePreviewProps {
   index: number;
   totalPages: number[];
   handleRemoveFile: (index: number) => void;
+  pagesPerSheet: string;  // Add this prop
 }
 
-const FilePreview: React.FC<FilePreviewProps> = React.memo(({ url, index, totalPages, handleRemoveFile }) => {
+const FilePreview: React.FC<FilePreviewProps> = React.memo(({ url, index, totalPages, handleRemoveFile, pagesPerSheet }) => {
   const [numPages, setNumPages] = useState<number | null>(null);
 
   useEffect(() => {
@@ -29,12 +30,27 @@ const FilePreview: React.FC<FilePreviewProps> = React.memo(({ url, index, totalP
     setNumPages(numPages);
   }
 
+  // Conditional rotation and size for landscape layout
+  const isLandscape = pagesPerSheet === "2";
+  const pageWidth = isLandscape ? 275 : 194;
+  const pageHeight = isLandscape ? 275 : 275;
+
   return (
     <div className="flex flex-col gap-1 items-center m-2">
-      <div className="preview-container p-1 relative bg-white rounded-lg shadow-md">
+      <div
+        className={`preview-container p-1 relative bg-white rounded-lg shadow-md ${pagesPerSheet === "2" ? 'landscape-preview-container' : ''
+          }`}
+      >
+
         <Document file={url} onLoadSuccess={onDocumentLoadSuccess} loading={<LoadingSpinner />}>
           <div className="flex items-center justify-center" style={{ height: '100%' }}>
-            <Page pageNumber={1} width={194} height={275} renderTextLayer={false} renderAnnotationLayer={false} />
+          <Page 
+              pageNumber={1} 
+              width={pageWidth} 
+              height={pageHeight} 
+              renderTextLayer={false} 
+              renderAnnotationLayer={false} 
+            />
           </div>
         </Document>
         <button

@@ -29,6 +29,11 @@ const argv = yargs(hideBin(process.argv))
     type: 'number',
     default: localConfig.maxRetries || 5
   })
+  .option('printer-status-update-interval', {
+    description: 'Interval (in milliseconds) to check printer status',
+    type: 'number',
+    default: localConfig.printerStatusUpdateInterval || 60000  // default to 1 minute
+  })
   .argv;
 
 const config = {
@@ -39,6 +44,7 @@ const config = {
   tempDir: path.join(process.env.APPDATA || process.env.HOME, '.pdf-printer-app'),
   logFile: path.join(process.env.APPDATA || process.env.HOME, '.pdf-printer-app', 'application.log'),
   clientInfoFile: path.join(process.env.APPDATA || process.env.HOME, '.pdf-printer-app', 'clientInfo.json'),
+  printerStatusUpdateInterval: argv['printer-status-update-interval'] // use the new option
 };
 
 module.exports = config;
