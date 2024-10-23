@@ -11,11 +11,15 @@ class WSClient {
         this.reconnectAttempts = 0;
         this.messageQueue = [];
         this.isConnecting = false;
-        this.mainWindow = null;  // Placeholder for mainWindow
+        this.mainWindow = null;
         this.printQueue = null;
         this.printJobs = new Map();
-        this.printerManager = printerManager; // Add this line
-
+        this.printerManager = printerManager;
+        this.heartbeatInterval = null;
+        this.pingTimeout = null;
+        this.heartbeatDelay = 15000;     // Send heartbeat every 15 seconds (reduced from 20)
+        this.pingTimeoutDelay = 5000;    // Wait 5 seconds for pong response
+        this.lastPongReceived = null; 
 
     }
 
@@ -23,13 +27,54 @@ class WSClient {
         this.mainWindow = mainWindow;
         this.printerManager = printerManager;
         this.printQueue = new PrintQueue(this.printerManager);
-        this.setupPrintQueueListeners();  
-      }
+        this.setupPrintQueueListeners();
+    }
+    setupHeartbeat() {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+        }
+    
+        this.heartbeatInterval = setInterval(() => {
+            if (this.ws?.readyState === WebSocket.OPEN) {
+                try {
+                    // Check for long-term pong absence
+                    if (this.lastPongReceived && Date.now() - this.lastPongReceived > 30000) {
+                        logger.warn('No pong received for 30 seconds, reconnecting...', this.mainWindow);
+                        this.cleanup();
+                        this.reconnect();
+                        return;
+                    }
+    
+                    logger.info('Sending heartbeat ping...', this.mainWindow);
+                    this.ws.ping(() => {
+                        if (this.pingTimeout) clearTimeout(this.pingTimeout);
+                        
+                        this.pingTimeout = setTimeout(() => {
+                            logger.warn('⚠️ Ping timeout detected - no pong received', this.mainWindow);
+                            this.cleanup();
+                            this.reconnect();
+                        }, this.pingTimeoutDelay);
+                    });
+    
+                } catch (error) {
+                    logger.error(`Error sending ping: ${error.message}`, this.mainWindow);
+                    this.cleanup();
+                    this.reconnect();
+                }
+            } else {
+                logger.warn('Cannot send heartbeat - WebSocket not open', this.mainWindow);
+                this.cleanup();
+                this.reconnect();
+            }
+        }, this.heartbeatDelay);
+    }
+    
+    
 
     async connect() {
         if (this.isConnecting) return;
         this.isConnecting = true;
-
+    
         try {
             const authState = await authManager.checkAuthState();
             if (!authState.isAuthenticated) {
@@ -37,19 +82,54 @@ class WSClient {
                 this.isConnecting = false;
                 return;
             }
-
+    
             this.ws = new WebSocket(config.wsUrl, {
-                headers: { Authorization: `Bearer ${authState.token}` }
+                headers: { 
+                    Authorization: `Bearer ${authState.token}`,
+                    'Connection': 'Upgrade',
+                    'Upgrade': 'websocket'
+                },
+                handshakeTimeout: 10000,
+                maxPayload: 50 * 1024 * 1024 
             });
-
+    
+            // Bind event listeners
             this.ws.on('open', this.onOpen.bind(this));
             this.ws.on('message', this.onMessage.bind(this));
             this.ws.on('close', this.onClose.bind(this));
             this.ws.on('error', this.onError.bind(this));
+            
+            // Single pong handler
+            this.ws.on('pong', () => {
+                this.lastPongReceived = Date.now();
+                logger.info(`✓ Pong received from server at ${new Date().toISOString()}`, this.mainWindow);
+                if (this.pingTimeout) {
+                    clearTimeout(this.pingTimeout);
+                    this.pingTimeout = null;
+                }
+            });
+    
+            // Single ping handler
+            this.ws.on('ping', () => {
+                logger.info('Ping received from server, sending pong', this.mainWindow);
+                // try {
+                //     this.ws.pong();
+                // } catch (error) {
+                //     logger.error(`Error sending pong: ${error.message}`, this.mainWindow);
+                // }
+            });
+    
         } catch (error) {
             logger.error(`Error during WebSocket connection: ${error.message}`, this.mainWindow);
             this.isConnecting = false;
             this.reconnect();
+        }
+    }
+    
+    heartbeatReceived() {
+        if (this.pingTimeout) {
+            clearTimeout(this.pingTimeout);
+            this.pingTimeout = null;
         }
     }
 
@@ -57,9 +137,10 @@ class WSClient {
         logger.info('Connected to WebSocket server', this.mainWindow);
         this.isConnecting = false;
         this.reconnectAttempts = 0;
-        this.reconnectInterval = 1000; // Reset reconnect interval
-        // this.sendInitialState();
+        this.reconnectInterval = 1000;
+        this.setupHeartbeat();
         this.sendQueuedMessages();
+
         // Send authentication message
         setTimeout(() => {
             authManager.getUserId().then((clientId) => {
@@ -189,7 +270,7 @@ class WSClient {
             this.printQueue.on('jobStarted', (jobId) => {
                 this.sendPrintJobUpdate(jobId, 'printing');
             });
-    
+
             this.printQueue.on('jobFinished', (jobId, status) => {
                 this.sendPrintJobUpdate(jobId, status);
             });
@@ -224,8 +305,32 @@ class WSClient {
 
     onClose(code, reason) {
         logger.warn(`Disconnected from WebSocket server. Code: ${code}, Reason: ${reason}`, this.mainWindow);
-        this.isConnecting = false;
+        this.cleanup();
         this.reconnect();
+    }
+    cleanup() {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
+        }
+        if (this.pingTimeout) {
+            clearTimeout(this.pingTimeout);
+            this.pingTimeout = null;
+        }
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
+        this.isConnecting = false;
+        this.lastPongReceived = null;
+        
+        if (this.ws) {
+            try {
+                this.ws.removeAllListeners();
+            } catch (error) {
+                logger.error(`Error removing WebSocket listeners: ${error.message}`, this.mainWindow);
+            }
+        }
     }
 
     onError(error) {
@@ -243,7 +348,8 @@ class WSClient {
         this.reconnectAttempts++;
 
         logger.info(`Attempting to reconnect in ${delay}ms...`);
-        setTimeout(() => this.connect(), delay);
+        if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
+        this.reconnectTimeout = setTimeout(() => this.connect(), delay);
     }
 
     close() {
@@ -309,10 +415,13 @@ class WSClient {
     // Method to be called when the application is shutting down
     shutdown() {
         logger.info('Shutting down WebSocket client', this.mainWindow);
-        clearTimeout(this.reconnectTimeout); // Clear any reconnect attempts
-        this.close();
+        this.cleanup();
+        clearTimeout(this.reconnectTimeout);
+        if (this.ws) {
+            this.ws.close(1000, 'Client shutting down');
+            this.ws = null;
+        }
     }
-
 }
 
 module.exports = new WSClient();

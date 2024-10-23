@@ -201,4 +201,28 @@ body.dark-mode .log-error {
         min-height: 0;
     }
 }
+/* Add to your existing styles */
+.appearance-none::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: #2563eb;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: -6px; /* This will center the knob on the track */
+}
+
+.appearance-none::-webkit-slider-runnable-track {
+    height: 8px;
+    border-radius: 4px;
+    background: #e5e7eb;
+}
+
+/* Add active state styles */
+.appearance-none:active::-webkit-slider-thumb {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 8px rgba(37, 99, 235, 0.1);
+}
 /* Your custom styles go here */

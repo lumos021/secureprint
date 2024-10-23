@@ -38,6 +38,50 @@ const elements = {
   cancelAddPrinter: document.getElementById('cancelAddPrinter'),
   priorityInput: document.getElementById('priorityInput'),
   statusError: document.getElementById('statusError'),
+  prioritySlider: document.getElementById('prioritySlider'),
+  priorityLabel: document.getElementById('priorityLabel'),
+  priorityDescription: document.getElementById('priorityDescription'),
+  priorityIcon: document.getElementById('priorityIcon'),
+  priorityBadge: document.getElementById('priorityBadge'),
+};
+
+const priorities = {
+  low: {
+      range: [0, 3],
+      label: 'Low Queue Priority',
+      description: 'This printer will be selected last when multiple printers are available',
+      icon: '<i class="fas fa-layer-group text-2xl text-gray-500"></i>',
+      badge: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+  },
+  normal: {
+      range: [4, 7],
+      label: 'Medium Queue Priority',
+      description: 'This printer will be selected after high-priority printers',
+      icon: '<i class="fas fa-layer-group text-2xl text-blue-600"></i>',
+      badge: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+  },
+  high: {
+      range: [8, 10],
+      label: 'High Queue Priority',
+      description: 'This printer will be selected first when multiple printers are available',
+      icon: '<i class="fas fa-layer-group text-2xl text-orange-500"></i>',
+      badge: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+  }
+};
+
+const updatePriorityUI = (value) => {
+  let priority;
+  if (value <= 3) priority = priorities.low;
+  else if (value <= 7) priority = priorities.normal;
+  else priority = priorities.high;
+
+  elements.priorityLabel.textContent = priority.label;
+  elements.priorityDescription.textContent = priority.description;
+  elements.priorityIcon.innerHTML = priority.icon;
+  
+  elements.priorityBadge.className = `px-3 py-1 rounded-full text-sm font-medium ${priority.badge}`;
+  elements.priorityBadge.textContent = `Priority ${value}`;
+  elements.prioritySlider.style.setProperty('--value', `${(value / 10) * 100}%`);
 };
 
 const updatePrintStats = async () => {
@@ -104,7 +148,7 @@ const clearErrors = () => {
 
 const showScreen = (screenName) => {
   ['loginScreen', 'registrationScreen', 'mainApp'].forEach(screen => {
-      elements[screen].classList.toggle('hidden', screen !== screenName);
+    elements[screen].classList.toggle('hidden', screen !== screenName);
   });
   clearErrors();
 };
@@ -113,36 +157,36 @@ const showScreen = (screenName) => {
 const handleLogin = async (event) => {
   event.preventDefault();
   clearErrors();
-  
+
   const { usernameInput, passwordInput } = elements;
-  
+
   if (!usernameInput || !passwordInput) {
     console.error('Email or password input not found');
     showError('login', 'Email or password input not found.');
     return;
   }
-  
+
   const email = usernameInput.value.trim();
   const password = passwordInput.value.trim();
-  
+
   if (!email || !password) {
     showError('login', 'Please enter both email and password.');
     return;
   }
-  
+
   try {
-    const response = await window.electron.invoke('login', { 
-      email, 
-      password 
+    const response = await window.electron.invoke('login', {
+      email,
+      password
     });
-    
+
     if (response.success) {
       showScreen('mainApp');
     } else {
       showError('login', `Login failed: ${response.error}`);
     }
   } catch (error) {
-    console.error('Login error details:', error);  
+    console.error('Login error details:', error);
     showError('login', 'An error occurred during login. Please try again.');
   }
 };
@@ -152,34 +196,34 @@ const handleRegistration = async (event) => {
   event.preventDefault();
   clearErrors();
   const { nameInput, emailInput, registerPasswordInput, addressInput, isShopCheckbox, latitudeInput, longitudeInput } = elements;
-  
+
   const registrationData = {
-      name: nameInput.value,
-      email: emailInput.value,
-      password: registerPasswordInput.value,
-      address: addressInput.value,
-      isShop: isShopCheckbox.checked
+    name: nameInput.value,
+    email: emailInput.value,
+    password: registerPasswordInput.value,
+    address: addressInput.value,
+    isShop: isShopCheckbox.checked
   };
 
   if (registrationData.isShop) {
-      registrationData.shopDetails = {
-          location: {
-              lat: parseFloat(latitudeInput.value),
-              lng: parseFloat(longitudeInput.value)
-          }
-      };
+    registrationData.shopDetails = {
+      location: {
+        lat: parseFloat(latitudeInput.value),
+        lng: parseFloat(longitudeInput.value)
+      }
+    };
   }
 
   try {
-      const result = await window.electron.invoke('register-client', registrationData);
-      if (result.success) {
-          showScreen('loginScreen');
-          showError('login', 'Registration successful! Please log in.');
-      } else {
-          showError('registration', `Registration failed: ${result.error}`);
-      }
+    const result = await window.electron.invoke('register-client', registrationData);
+    if (result.success) {
+      showScreen('loginScreen');
+      showError('login', 'Registration successful! Please log in.');
+    } else {
+      showError('registration', `Registration failed: ${result.error}`);
+    }
   } catch (error) {
-      showError('registration', 'An error occurred during registration. Please try again.');
+    showError('registration', 'An error occurred during registration. Please try again.');
   }
 };
 
@@ -190,22 +234,22 @@ const handleDarkModeToggle = () => {
 
 const handleRefreshPrinters = async () => {
   try {
-      const printers = await window.electron.requestPrinterList();
-      elements.printerSelect.innerHTML = printers.map(printer => 
-          `<option value="${printer.name}">${printer.name}</option>`
-      ).join('');
+    const printers = await window.electron.requestPrinterList();
+    elements.printerSelect.innerHTML = printers.map(printer =>
+      `<option value="${printer.name}">${printer.name}</option>`
+    ).join('');
   } catch (error) {
-      showError('status', 'Failed to refresh printer list. Please try again.');
+    showError('status', 'Failed to refresh printer list. Please try again.');
   }
 };
 
 const handleSetPrinter = async () => {
   const selectedPrinter = elements.printerSelect.value;
   try {
-      await window.electron.selectPrinter(selectedPrinter);
-      elements.statusEl.textContent = `Status: ${selectedPrinter} set as default printer.`;
+    await window.electron.selectPrinter(selectedPrinter);
+    elements.statusEl.textContent = `Status: ${selectedPrinter} set as default printer.`;
   } catch (error) {
-      showError('status', 'Failed to set printer. Please try again.');
+    showError('status', 'Failed to set printer. Please try again.');
   }
 };
 
@@ -214,8 +258,8 @@ const handleQueueUpdate = (queue) => {
 
   // Ensure the queue is an array and not undefined or null
   if (Array.isArray(queue) && queue.length > 0) {
-    elements.queueList.innerHTML = queue.map(job => 
-        `<li class="mb-1 p-2 bg-white dark:bg-gray-600 ">
+    elements.queueList.innerHTML = queue.map(job =>
+      `<li class="mb-1 p-2 bg-white dark:bg-gray-600 ">
             Job ${job.jobId} - ${job.printerName || 'Unknown Printer'} - ${job.status || 'unknown'}
         </li>`
     ).join('');
@@ -233,11 +277,11 @@ const handleLogMessage = (message) => {
 
   const logLevel = message.match(/\[(.*?)\]/)?.[1].toLowerCase() || 'default';
   const logClasses = {
-      debug: 'text-debug-light dark:text-debug-dark',
-      info: 'text-info-light dark:text-info-dark',
-      warn: 'text-warn-light dark:text-warn-dark',
-      error: 'text-error-light dark:text-error-dark',
-      default: 'text-black dark:text-white'
+    debug: 'text-debug-light dark:text-debug-dark',
+    info: 'text-info-light dark:text-info-dark',
+    warn: 'text-warn-light dark:text-warn-dark',
+    error: 'text-error-light dark:text-error-dark',
+    default: 'text-black dark:text-white'
   };
 
   logEntry.className = logClasses[logLevel] || logClasses.default;
@@ -251,41 +295,41 @@ const handleShopCheckboxChange = () => {
   elements.latitudeInput.required = isShop;
   elements.longitudeInput.required = isShop;
   if (!isShop) {
-      elements.latitudeInput.value = '';
-      elements.longitudeInput.value = '';
+    elements.latitudeInput.value = '';
+    elements.longitudeInput.value = '';
   }
 };
 
 const handleGetLocation = () => {
   if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-          (position) => {
-              elements.latitudeInput.value = position.coords.latitude;
-              elements.longitudeInput.value = position.coords.longitude;
-          },
-          (error) => {
-              const errorMessages = {
-                  1: 'Permission denied. Please enable location services.',
-                  2: 'Location information is unavailable.',
-                  3: 'The request to get user location timed out.'
-              };
-              showError('registration', errorMessages[error.code] || 'An unknown error occurred.');
-          },
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-      );
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        elements.latitudeInput.value = position.coords.latitude;
+        elements.longitudeInput.value = position.coords.longitude;
+      },
+      (error) => {
+        const errorMessages = {
+          1: 'Permission denied. Please enable location services.',
+          2: 'Location information is unavailable.',
+          3: 'The request to get user location timed out.'
+        };
+        showError('registration', errorMessages[error.code] || 'An unknown error occurred.');
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
   } else {
-      showError('registration', 'Geolocation is not supported by your browser. Please enter location manually.');
+    showError('registration', 'Geolocation is not supported by your browser. Please enter location manually.');
   }
 };
 
 const handleLogout = async () => {
   try {
-      await window.electron.invoke('logout');
-      elements.logWindow.innerHTML = '';
-      elements.queueList.innerHTML = '';
-      showScreen('loginScreen');
+    await window.electron.invoke('logout');
+    elements.logWindow.innerHTML = '';
+    elements.queueList.innerHTML = '';
+    showScreen('loginScreen');
   } catch (error) {
-      console.error('Logout failed:', error);
+    console.error('Logout failed:', error);
   }
 };
 
@@ -307,7 +351,7 @@ elements.cancelAddPrinter.addEventListener('click', hideAddPrinterModal);
 async function showAddPrinterModal() {
   try {
     const printers = await window.electron.invoke('request-printer-list');
-    elements.printerSelectModal.innerHTML = printers.map(printer => 
+    elements.printerSelectModal.innerHTML = printers.map(printer =>
       `<option value="${printer.name}">${printer.name}${printer.isDefault ? ' (Default)' : ''}</option>`
     ).join('');
     elements.addPrinterModal.classList.remove('hidden');
@@ -327,14 +371,14 @@ async function handleAddPrinterPreference(event) {
   const printerName = elements.printerSelectModal.value;
   const isColor = elements.isColorCheckbox.checked;
   const isBW = elements.isBWCheckbox.checked;
-  const priority = parseInt(elements.priorityInput.value, 10) || 0;
+  const priority = parseInt(elements.prioritySlider.value, 10);
 
   try {
-    await window.electron.invoke('add-printer-preference', { printerName, isColor, isBW, priority });
-    hideAddPrinterModal();
-    await refreshPrinterPreferences();
+      await window.electron.invoke('add-printer-preference', { printerName, isColor, isBW, priority });
+      hideAddPrinterModal();
+      await refreshPrinterPreferences();
   } catch (error) {
-    showError('status', 'Failed to add printer preference. Please try again.');
+      showError('status', 'Failed to add printer preference. Please try again.');
   }
 }
 
@@ -408,6 +452,15 @@ const initializeApp = async () => {
   const isAuthenticated = await window.electron.checkAuth();
   showScreen(isAuthenticated ? 'mainApp' : 'loginScreen');
 
+  // Initialize priority slider
+  if (elements.prioritySlider) {
+    elements.prioritySlider.addEventListener('input', (e) => {
+        const value = parseInt(e.target.value);
+        updatePriorityUI(value);
+    });
+    // Set initial value
+    updatePriorityUI(parseInt(elements.prioritySlider.value));
+}
   // Refresh printers on initial load
   await refreshPrinterPreferences();
   handleRefreshPrinters();
@@ -417,6 +470,6 @@ const initializeApp = async () => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-  setInterval(updatePrintStats, 60000); 
+  setInterval(updatePrintStats, 60000);
   initializeApp();
 });

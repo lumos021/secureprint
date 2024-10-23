@@ -255,7 +255,7 @@
                     <div id="statusError" class="hidden error-message"></div>
                     <section id="printerPreferences" class="mb-8">
                         <h2 class="text-xl font-semibold mb-4 dark:text-gray-100 flex items-center">
-                            <i class="fas fa-print mr-2"></i> Printer Preferences
+                            <i class="fas fa-cog mr-2"></i> Printer Preferences
                         </h2>
                         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
                             <div id="printerList" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -296,11 +296,46 @@
                                                 Printing</span>
                                         </label>
                                     </div>
-                                    <div class="mb-4">
-                                        <label for="priorityInput" class="block text-sm font-medium mb-2 dark:text-gray-300">Priority</label>
-                                        <input type="number" id="priorityInput" class="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" value="0" min="0">
+                                    <!-- Replace the existing priority input with this -->
+                                    <div class="mb-6">
+                                        <label class="block text-sm font-medium mb-3 dark:text-gray-300">Printer Queue Priority</label>
+                                        <div class="space-y-4">
+                                            <!-- Priority Slider -->
+                                            <div class="relative">
+                                                <input 
+                                                    type="range" 
+                                                    id="prioritySlider" 
+                                                    min="0" 
+                                                    max="10" 
+                                                    value="5"
+                                                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600 dark:bg-gray-700"
+                                                >
+                                                <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                                    <span>Last Priority</span>
+                                                    <span>Medium Priority</span>
+                                                    <span>First Priority</span>
+                                                </div>
+                                            </div>
+                                            <!-- Visual Priority Indicator -->
+                                            <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
+                                                <div class="flex items-center justify-between">
+                                                    <div class="flex items-center">
+                                                        <div id="priorityIcon" class="mr-3">
+                                                            <i class="fas fa-layer-group text-2xl text-blue-600"></i>
+                                                        </div>
+                                                        <div>
+                                                            <div id="priorityLabel" class="font-medium text-gray-900 dark:text-gray-100">Medium Queue Priority</div>
+                                                            <div id="priorityDescription" class="text-sm text-gray-500 dark:text-gray-400">This printer will be selected after high-priority printers</div>
+                                                        </div>
+                                                    </div>
+                                                    <div id="priorityBadge" class="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                                        Priority 5
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-
+                                    
                                     <div class="flex justify-end">
                                         <button type="button" id="cancelAddPrinter"
                                             class="mr-2 px-4 py-2 text-gray-600 dark:text-gray-300">Cancel</button>

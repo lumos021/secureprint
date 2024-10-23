@@ -28,13 +28,21 @@ module.exports = async (ws, req) => {
 
         ws.userId = decoded.userId;
         ws.isAlive = true;
-        ws.on('pong', () => { ws.isAlive = true; });
+
+        // Set up event handlers
+        ws.on('pong', () => {
+            ws.isAlive = true;
+            // logger.info(`Pong received from client ${ws.userId}`);
+        });
+
+        // Single ping handler
+        ws.on('ping', () => {
+            // logger.info(`Ping received from client ${ws.userId}`);
+        });
 
         clientManager.addClient(ws, decoded.userId);
         updateShopStatus(ws.userId, 'online');
         logger.info('WebSocket user connected', { userId: decoded.userId });
-        
-logger.info('WebSocket connection attempt', { userId: decoded.userId });
 
         ws.on('message', (message) => wsMessageHandler(ws, message));
 
@@ -43,6 +51,11 @@ logger.info('WebSocket connection attempt', { userId: decoded.userId });
             updateShopStatus(ws.userId, 'offline');
             logger.info('WebSocket user disconnected', { userId: decoded.userId });
         });
+
+        ws.on('error', (error) => {
+            logger.error('WebSocket error', { userId: ws.userId, error: error.message });
+        });
+
     } catch (error) {
         logger.error('Error in WebSocket connection', { error: error.message });
         ws.close(1008, 'Authentication failed');
