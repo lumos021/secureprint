@@ -64,12 +64,8 @@ Copy
 - Frontend: Deployed on Vercel free plan
 - Desktop Client: Distributed as a standalone application
 
-## Contributing
-
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
 
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
 
-## Contact
