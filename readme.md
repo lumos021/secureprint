@@ -3,11 +3,12 @@
 SecurePrint is a comprehensive printing solution that consists of three main components: a backend server, a Next.js frontend, and an Electron-based desktop client.
 
 ## Project Structure
+```bash
 secureprint/
 ├── backend/        # Node.js backend server
 ├── my-app/         # Next.js frontend application
 └── secprint/       # Electron-based desktop client
-Copy
+```
 ## Components
 
 ### Backend Server
@@ -32,32 +33,34 @@ The `secprint/` directory houses the Electron-based desktop client application.
 
 ### Installation
 
-1. Clone the repository:
+```bash
+# Clone the repository
 git clone https://github.com/yourusername/secureprint.git
 cd secureprint
-Copy
-2. Install dependencies:
+
+# Install dependencies
 yarn install
-Copy
-3. Bootstrap the project:
+
+# Bootstrap the project
 npx lerna bootstrap
-Copy
+```
 ## Development
 
 To run each component for development:
 
-1. Backend:
+```bash
+# Run Backend
 cd backend
 yarn start
-Copy
-2. Frontend:
-cd frontend
+
+# Run Frontend
+cd my-app
 yarn dev
-Copy
-3. Desktop Client:
-cd electron
+
+# Run Desktop Client
+cd secprint
 yarn start
-Copy
+```
 ## Deployment
 
 - Backend: Deployed on Google Cloud Platform (GCP) free tier
