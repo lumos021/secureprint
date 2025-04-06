@@ -73,7 +73,3 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduc
 This project is licensed under the [MIT License](LICENSE).
 
 ## Contact
-
-Your Name - your.email@example.com
-
-Project Link: [https://github.com/yourusername/secureprint](https://github.com/yourusername/secureprint)
