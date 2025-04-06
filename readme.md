@@ -51,11 +51,11 @@ cd backend
 yarn start
 Copy
 2. Frontend:
-cd my-app
+cd frontend
 yarn dev
 Copy
 3. Desktop Client:
-cd secprint
+cd electron
 yarn start
 Copy
 ## Deployment
